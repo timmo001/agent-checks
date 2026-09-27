@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { HerdrSdk, type Pane } from "@herdr/sdk";
+import { HerdrSdk, type Pane } from "@timmo001/effect-herdr";
 import { Effect, Option, Path, Schedule, Schema } from "effect";
 import { Launcher, RuntimeConfig } from "../config";
 import type { Run, Target } from "../services/github";

@@ -5,7 +5,7 @@ import {
   WorkspaceId,
   herdrSdkLayerFromOptions,
   type Workspace,
-} from "@herdr/sdk";
+} from "@timmo001/effect-herdr";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
 import { RuntimeConfig, pluginId, token } from "../config";
 

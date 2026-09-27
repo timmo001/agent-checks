@@ -137,4 +137,4 @@ export const dispatch = Effect.gen(function* () {
   );
 });
 
-import { HerdrSdk } from "@herdr/sdk";
+import { HerdrSdk } from "@timmo001/effect-herdr";

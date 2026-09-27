@@ -291,7 +291,7 @@ diagnostics. The socket-specific logs contain watcher and action details.
 
 [mise](https://mise.jdx.dev/) pins Bun and Node and runs the project tasks.
 
-Herdr requests use the Effect-native [`@herdr/sdk`](https://github.com/dmmulroy/herdr-ts-sdk).
+Herdr requests use the Effect-native [`@timmo001/effect-herdr`](https://github.com/timmo001/effect-herdr).
 Until it is published, the dependency is pinned to a GitHub commit. The Bun patch
 in `patches/` exposes its TypeScript entrypoint for Bun to bundle. Dependency
 overrides reference our direct Effect and platform dependencies, so updating

@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { HerdrSdk, PaneId, PluginId, WorkspaceId } from "@herdr/sdk";
+import {
+  HerdrSdk,
+  PaneId,
+  PluginId,
+  WorkspaceId,
+} from "@timmo001/effect-herdr";
 import {
   Cause,
   Console,

@@ -1,4 +1,4 @@
-import { HerdrSdk, type WorkspaceId } from "@herdr/sdk";
+import { HerdrSdk, type WorkspaceId } from "@timmo001/effect-herdr";
 import {
   Cause,
   Clock,

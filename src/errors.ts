@@ -9,7 +9,7 @@ import {
   HerdrUnsupportedProtocol,
   HerdrUnsupportedResult,
   herdrSdkLayerFromOptions,
-} from "@herdr/sdk";
+} from "@timmo001/effect-herdr";
 import { Cause, Duration, Effect, Schema } from "effect";
 import { join } from "node:path";
 import { ActionError } from "./actions/selection";
