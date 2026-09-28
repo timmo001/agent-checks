@@ -15,7 +15,7 @@ import {
   Schema,
   Terminal,
 } from "effect";
-import { Prompt } from "effect/unstable/cli";
+import { Prompt } from "effect/cli";
 import { availableLaunchers, pasteTarget } from "../actions/agent";
 import { handoff } from "../actions/prompt";
 import { Action, ActionError, Selection } from "../actions/selection";

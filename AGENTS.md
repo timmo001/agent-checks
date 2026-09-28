@@ -30,7 +30,7 @@ install dependencies.
 ## Effect conventions
 
 - Use Effect v4 APIs and keep `effect` and `@effect/platform-node` aligned.
-- Use `effect/unstable/cli` for commands and provide platform services once at
+- Use `effect/cli` for commands and provide platform services once at
   the CLI boundary.
 - Use `Context.Service` and layers for dependencies, schemas at external JSON
   boundaries and `Schema.TaggedErrorClass` for domain failures.
