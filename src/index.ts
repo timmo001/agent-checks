@@ -1,6 +1,6 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Layer, Logger } from "effect";
-import { Command } from "effect/unstable/cli";
+import { Command } from "effect/cli";
 import { version } from "../package.json";
 import { dispatch } from "./commands/dispatch";
 import { open, picker } from "./commands/picker";
