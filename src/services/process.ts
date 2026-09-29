@@ -1,5 +1,3 @@
-import { spawn } from "node:child_process";
-import { closeSync, openSync } from "node:fs";
 import { Context, Effect, Layer, Path, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { RuntimeConfig } from "../config";
@@ -105,37 +103,31 @@ export class Process extends Context.Service<
       // Only the detached entrypoints outlive this scope; the watcher owns its lease.
       const detach = Effect.fn("Process.detach")(
         function* (mode: string, env: Record<string, string> = {}) {
-          const fd = yield* Effect.acquireRelease(
-            Effect.try(() =>
-              openSync(path.join(config.state, `${mode}.log`), "a", 0o600),
-            ),
-            (file) => Effect.sync(() => closeSync(file)),
-          );
-
-          yield* Effect.callback<void, ProcessError>((resume) => {
-            const child = spawn(
-              process.execPath,
-              [path.join(config.root, "dist/index.js"), mode],
+          const child = yield* spawner.spawn(
+            ChildProcess.make(
+              "sh",
+              [
+                "-c",
+                'umask 077; log=$1; shift; exec "$@" >>"$log" 2>&1',
+                "sh",
+                path.join(config.state, `${mode}.log`),
+                process.execPath,
+                path.join(config.root, "dist/index.js"),
+                mode,
+              ],
               {
                 cwd: config.root,
                 detached: true,
-                stdio: ["ignore", fd, fd],
-                env: { ...process.env, ...env },
+                stdin: "ignore",
+                stdout: "ignore",
+                stderr: "ignore",
+                env,
+                extendEnv: true,
               },
-            );
+            ),
+          );
 
-            child.once("error", (cause) =>
-              resume(
-                Effect.fail(
-                  new ProcessError({ command: mode, message: String(cause) }),
-                ),
-              ),
-            );
-            child.once("spawn", () => {
-              child.unref();
-              resume(Effect.void);
-            });
-          });
+          yield* yield* child.unref;
         },
         Effect.scoped,
         (effect, mode) =>
