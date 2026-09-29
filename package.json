@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "effect-tsgo patch"
+    "prepare": "effect-tsgo patch --force=false"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-rc.118",
@@ -22,7 +22,7 @@
     "proper-lockfile": "4.1.2"
   },
   "devDependencies": {
-    "@effect/tsgo": "0.46.1",
+    "@effect/tsgo": "0.47.0",
     "@oxlint/plugins": "1.86.0",
     "@timmo001/oxlint-rules": "0.4.0",
     "@types/bun": "1.4.2",
