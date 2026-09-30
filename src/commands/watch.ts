@@ -10,17 +10,17 @@ import {
   Schedule,
 } from "effect";
 import { check, lock } from "proper-lockfile";
-import { RuntimeConfig } from "../config";
+import { RuntimeConfig, stateToken, token } from "../config";
 import { reportError } from "../errors";
-import { indicator } from "../indicator";
+import { indicator, state } from "../indicator";
 import {
   GitHub,
   targetKey,
   type Status,
   type Target,
 } from "../services/github";
-import { checkout, enabled, metadata } from "../services/herdr";
-import { Process, ProcessError } from "../services/process";
+import { checkout, cleared, enabled, metadata } from "../services/herdr";
+import { ProcessError, detach } from "../services/process";
 import { waitForUpdate } from "../services/reload";
 
 export const start = Effect.gen(function* () {
@@ -36,7 +36,7 @@ export const start = Effect.gen(function* () {
     }),
   );
 
-  if (!held) yield* (yield* Process).detach("watch");
+  if (!held) yield* detach("watch");
 });
 
 type CachedTarget = {
@@ -107,7 +107,7 @@ const runWatcher = Effect.gen(function* () {
     Effect.forEach(
       [...workspaces.keys()],
       (id) =>
-        metadata(id, null).pipe(
+        metadata(id, cleared).pipe(
           Effect.catch((cause) =>
             Effect.logDebug("Could not clear workspace indicator", cause),
           ),
@@ -147,7 +147,7 @@ const runWatcher = Effect.gen(function* () {
         const key = target ? targetKey(target) : "";
 
         if (workspaces.get(workspace.id) !== key)
-          yield* metadata(workspace.id, null);
+          yield* metadata(workspace.id, cleared);
         workspaces.set(workspace.id, key);
 
         return { id: workspace.id, target, error };
@@ -198,7 +198,8 @@ const runWatcher = Effect.gen(function* () {
           discovered.filter(
             (item) => item.target && targetKey(item.target) === key,
           ),
-          (item) => metadata(item.id, config.indicatorTemplates.loading),
+          (item) =>
+            metadata(item.id, { [token]: config.indicatorTemplates.loading }),
           { concurrency: config.concurrency, discard: true },
         );
         const started = yield* Clock.currentTimeMillis;
@@ -258,12 +259,12 @@ const runWatcher = Effect.gen(function* () {
           : undefined;
 
         const error = item.error ?? value?.error ?? null;
-        yield* metadata(
-          item.id,
-          error
+        yield* metadata(item.id, {
+          [token]: error
             ? config.indicatorTemplates.unavailable
             : indicator(value?.status ?? null, config),
-        );
+          [stateToken]: state(value?.status ?? null, error),
+        });
 
         return {
           workspace: item.id,
@@ -324,6 +325,6 @@ export const watch = Effect.gen(function* () {
 
   if (restart && (yield* enabled)) {
     yield* Effect.logInfo("Workflow Watch changed; starting a new watcher");
-    yield* (yield* Process).detach("watch");
+    yield* detach("watch");
   }
 });

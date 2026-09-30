@@ -89,7 +89,8 @@ export const reportError = Effect.fn("Errors.reportError")(function* (
 
   yield* Effect.logError(title, cause);
 
-  if (socket) {
+  // failures reports to its caller, which may run outside the Herdr session.
+  if (socket && mode !== "failures") {
     yield* Effect.gen(function* () {
       yield* (yield* HerdrSdk).notifications.show({ title, body: message });
     }).pipe(

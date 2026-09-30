@@ -7,7 +7,7 @@ import {
   type Workspace,
 } from "@timmo001/effect-herdr";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
-import { RuntimeConfig, pluginId, token } from "../config";
+import { RuntimeConfig, pluginId, stateToken, token } from "../config";
 
 export const Origin = Schema.Struct({
   workspace: WorkspaceId,
@@ -39,15 +39,17 @@ export const enabled = Effect.gen(function* () {
   return plugins.some((plugin) => plugin.id === pluginId && plugin.enabled);
 });
 
+export const cleared = { [token]: null, [stateToken]: null };
+
 export const metadata = Effect.fn("Herdr.metadata")(function* (
   id: WorkspaceId,
-  value: string | null,
+  tokens: Readonly<Record<string, string | null>>,
 ) {
   const config = yield* RuntimeConfig;
   yield* (yield* HerdrSdk).workspaces
     .reportMetadata(id, {
       source: `plugin:${pluginId}`,
-      tokens: { [token]: value },
+      tokens,
       ttlMs: Math.min(86_400_000, config.retryMs + config.pollMs * 2),
     })
     .pipe(

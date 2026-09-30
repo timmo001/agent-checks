@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Path, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import { RuntimeConfig } from "../config";
+import { ClientConfig, RuntimeConfig } from "../config";
 
 export class ProcessError extends Schema.TaggedError<ProcessError>()(
   "ProcessError",
@@ -29,17 +29,12 @@ export class Process extends Context.Service<
       args: ReadonlyArray<string>,
       cwd?: string,
     ) => Effect.Effect<string, ProcessError>;
-    readonly detach: (
-      mode: string,
-      env?: Record<string, string>,
-    ) => Effect.Effect<void, ProcessError>;
   }
 >()("herdr-workflow-watch/Process") {
   static readonly layer = Layer.effect(
     Process,
     Effect.gen(function* () {
-      const config = yield* RuntimeConfig;
-      const path = yield* Path.Path;
+      const config = yield* ClientConfig;
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
       const run = Effect.fn("Process.run")(
@@ -100,46 +95,49 @@ export class Process extends Context.Service<
         return output.stdout;
       });
 
-      // Only the detached entrypoints outlive this scope; the watcher owns its lease.
-      const detach = Effect.fn("Process.detach")(
-        function* (mode: string, env: Record<string, string> = {}) {
-          const child = yield* spawner.spawn(
-            ChildProcess.make(
-              "sh",
-              [
-                "-c",
-                'umask 077; log=$1; shift; exec "$@" >>"$log" 2>&1',
-                "sh",
-                path.join(config.state, `${mode}.log`),
-                process.execPath,
-                path.join(config.root, "dist/index.js"),
-                mode,
-              ],
-              {
-                cwd: config.root,
-                detached: true,
-                stdin: "ignore",
-                stdout: "ignore",
-                stderr: "ignore",
-                env,
-                extendEnv: true,
-              },
-            ),
-          );
-
-          yield* yield* child.unref;
-        },
-        Effect.scoped,
-        (effect, mode) =>
-          effect.pipe(
-            Effect.mapError(
-              (cause) =>
-                new ProcessError({ command: mode, message: String(cause) }),
-            ),
-          ),
-      );
-
-      return Process.of({ run, text, detach });
+      return Process.of({ run, text });
     }),
   );
 }
+
+// Only the detached entrypoints outlive this scope; the watcher owns its lease.
+export const detach = Effect.fn("Process.detach")(
+  function* (mode: string, env: Record<string, string> = {}) {
+    const config = yield* RuntimeConfig;
+    const path = yield* Path.Path;
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+
+    const child = yield* spawner.spawn(
+      ChildProcess.make(
+        "sh",
+        [
+          "-c",
+          'umask 077; log=$1; shift; exec "$@" >>"$log" 2>&1',
+          "sh",
+          path.join(config.state, `${mode}.log`),
+          process.execPath,
+          path.join(config.root, "dist/index.js"),
+          mode,
+        ],
+        {
+          cwd: config.root,
+          detached: true,
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+          env,
+          extendEnv: true,
+        },
+      ),
+    );
+
+    yield* yield* child.unref;
+  },
+  Effect.scoped,
+  (effect, ...[mode]: [string, Record<string, string>?]) =>
+    effect.pipe(
+      Effect.mapError(
+        (cause) => new ProcessError({ command: mode, message: String(cause) }),
+      ),
+    ),
+);

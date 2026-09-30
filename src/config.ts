@@ -6,6 +6,8 @@ export const pluginId = "timmo.workflow-watch";
 
 export const token = "timmo_workflow_watch";
 
+export const stateToken = "timmo_workflow_watch_state";
+
 export function stateDirectory(root: string, socket: string) {
   return join(
     root,
@@ -234,5 +236,24 @@ export class RuntimeConfig extends Context.Service<
             }),
       ),
     ),
+  );
+}
+
+export class ClientConfig extends Context.Service<
+  ClientConfig,
+  { readonly timeoutMs: number }
+>()("herdr-workflow-watch/ClientConfig") {
+  static readonly layer = Layer.effect(
+    ClientConfig,
+    Effect.gen(function* () {
+      const config = yield* RuntimeConfig;
+
+      return ClientConfig.of({ timeoutMs: config.timeoutMs });
+    }),
+  );
+
+  static readonly standalone = Layer.succeed(
+    ClientConfig,
+    ClientConfig.of({ timeoutMs: 30_000 }),
   );
 }

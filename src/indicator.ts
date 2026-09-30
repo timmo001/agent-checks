@@ -1,5 +1,42 @@
+import { createHash } from "node:crypto";
 import type { RuntimeConfig } from "./config";
 import { attention, type Status } from "./services/github";
+
+// Machine-readable companion to the display token. Herdr caps token values at 80 characters.
+export function state(status: Status | null, error: string | null) {
+  if (error) return "v1 unavailable";
+
+  if (!status) return null;
+
+  const failures = status.runs.filter((run) => attention(run.conclusion));
+
+  if (failures.length)
+    return `v1 failure ${status.sha} ${createHash("sha256")
+      .update(
+        failures
+          .map((run) => `${run.id}:${run.run_attempt}`)
+          .sort()
+          .join(","),
+      )
+      .digest("hex")
+      .slice(0, 8)}`;
+
+  if (status.runs.some((run) => run.status !== "completed"))
+    return `v1 running ${status.sha}`;
+
+  if (
+    status.runs.some((run) => run.conclusion === "success") &&
+    status.runs.every(
+      (run) =>
+        run.conclusion === "success" ||
+        run.conclusion === "neutral" ||
+        run.conclusion === "skipped",
+    )
+  )
+    return `v1 success ${status.sha}`;
+
+  return `v1 idle ${status.sha}`;
+}
 
 export function indicator(
   status: Status | null,

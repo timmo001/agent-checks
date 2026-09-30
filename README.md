@@ -287,6 +287,44 @@ Use `herdr plugin list --plugin timmo.workflow-watch --json` and
 `herdr plugin log list --plugin timmo.workflow-watch` for registration and hook
 diagnostics. The socket-specific logs contain watcher and action details.
 
+## Integrations
+
+Other tools can follow CI without polling GitHub themselves. Alongside the
+display token, the watcher publishes `$timmo_workflow_watch_state`, a
+machine-readable token for the current pushed commit only. It ignores the
+display options and templates, and keeps its last value while a refresh loads:
+
+```text
+v1 failure <sha> <fingerprint>
+v1 running <sha>
+v1 success <sha>
+v1 idle <sha>
+v1 unavailable
+```
+
+`idle` covers commits with no runs, or runs that finished without passing or
+failing. The fingerprint is the first 8 hex characters of a SHA-256 over the
+sorted `run-id:attempt` pairs needing attention, so it changes when a different
+set of runs fails, including reruns. The token is cleared with the display token.
+
+Subscribe to `workspace.metadata_updated` on the Herdr socket to receive it.
+Herdr emits that event on every poll because the token TTL is refreshed, so
+consumers should compare values and act only on changes.
+
+To read the failures, run the `failures` command from the plugin root, which
+`herdr plugin list --plugin timmo.workflow-watch --json` reports as `plugin_root`:
+
+```sh
+mise exec -- bun dist/index.js failures --cwd /path/to/checkout --json
+```
+
+It needs no Herdr environment and sends no Herdr notifications. It resolves the
+checkout's pushed branch the same way as the watcher and prints the repository,
+branch, pushed commit, runs needing attention with their failed jobs, steps and
+logs, and the same investigation prompt as the picker. Compare `sha` with the
+token before acting on it. Large logs are saved under `--log-dir`, by default
+`$XDG_STATE_HOME/herdr-workflow-watch/logs`. Without `--json` it prints the prompt.
+
 ## Development
 
 [mise](https://mise.jdx.dev/) pins Bun and Node and runs the project tasks.

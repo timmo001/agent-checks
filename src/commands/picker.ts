@@ -24,7 +24,7 @@ import { reportError } from "../errors";
 import { indicator } from "../indicator";
 import { GitHub, attention, type Run } from "../services/github";
 import { Origin, checkout } from "../services/herdr";
-import { Process } from "../services/process";
+import { detach } from "../services/process";
 import { plain } from "../text";
 import { start } from "./watch";
 
@@ -216,7 +216,7 @@ export const picker = Effect.gen(function* () {
     yield* Schema.encodeEffect(Schema.fromJsonString(Selection))(selection),
     { mode: 0o600 },
   );
-  yield* (yield* Process).detach("dispatch", { WORKFLOW_WATCH_SELECTION: id });
+  yield* detach("dispatch", { WORKFLOW_WATCH_SELECTION: id });
 
   // The worker closes this popup before changing layout or sending input.
   return yield* Effect.never;

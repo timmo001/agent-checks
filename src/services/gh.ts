@@ -1,10 +1,10 @@
 import { layer } from "@timmo001/effect-gh";
 import { Effect, Layer } from "effect";
-import { RuntimeConfig } from "../config";
+import { ClientConfig } from "../config";
 
 export const ghLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const config = yield* RuntimeConfig;
+    const config = yield* ClientConfig;
 
     return layer({
       timeout: config.timeoutMs,
