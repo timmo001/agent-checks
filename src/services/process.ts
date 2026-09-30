@@ -131,7 +131,7 @@ export const detach = Effect.fn("Process.detach")(
       ),
     );
 
-    yield* yield* child.unref;
+    yield* child.unref.pipe(Effect.asVoid);
   },
   Effect.scoped,
   (effect, ...[mode]: [string, Record<string, string>?]) =>
