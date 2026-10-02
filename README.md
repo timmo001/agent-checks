@@ -164,8 +164,8 @@ current failures; **Open all Actions in browser** gives access to older runs.
 Loading appears as soon as a workspace's branch is discovered and stays until its
 first result is published. It also appears when a GitHub status request starts,
 including refreshes, and is replaced when the poll results are published. New
-workspaces are discovered as soon as Herdr reports them, and their first poll
-skips the usual spacing between polls. Cached targets waiting for their
+workspaces and pane directory changes are picked up as soon as Herdr reports
+them, and a new target's first poll skips the usual spacing between polls. Cached targets waiting for their
 next poll or retry keep their existing status. Once loaded, unavailable status
 takes priority over failures, then in-progress runs, then success. In-progress
 includes all runs that have not completed, including queued and waiting runs,

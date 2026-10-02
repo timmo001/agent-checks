@@ -5,6 +5,7 @@ import {
   Deferred,
   Effect,
   FileSystem,
+  Option,
   Path,
   Queue,
   Result,
@@ -187,18 +188,36 @@ const runWatcher = Effect.gen(function* () {
   let nextDiscovery = 0;
   let nextPoll = 0;
   const wake = yield* Queue.sliding<void>(1);
+  const paneCwds = new Map<string, string | undefined>();
 
-  // New workspaces would otherwise wait for the next periodic discovery.
+  // New workspaces and directory changes would otherwise wait for the next
+  // periodic discovery.
   yield* herdr.events
     .subscribe([
       { type: "workspace.created" },
       { type: "workspace.closed" },
       { type: "worktree.opened" },
       { type: "pane.created" },
+      { type: "pane.updated" },
+      { type: "pane.closed" },
     ])
     .pipe(
-      Stream.runForEach(() =>
+      Stream.runForEach((event) =>
         Effect.gen(function* () {
+          if (event.type === "pane.updated") {
+            // Title changes also emit this event, so only a new cwd counts.
+            const cwd = Option.getOrUndefined(event.pane.cwd);
+
+            if (paneCwds.get(event.pane.id) === cwd) return;
+            paneCwds.set(event.pane.id, cwd);
+          } else if (event.type === "pane.created") {
+            paneCwds.set(event.pane.id, Option.getOrUndefined(event.pane.cwd));
+          } else if (event.type === "pane.closed") {
+            paneCwds.delete(event.paneId);
+
+            return;
+          }
+
           nextDiscovery = 0;
           yield* Queue.offer(wake, undefined);
         }),
