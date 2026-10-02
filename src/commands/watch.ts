@@ -6,8 +6,10 @@ import {
   Effect,
   FileSystem,
   Path,
+  Queue,
   Result,
   Schedule,
+  Stream,
 } from "effect";
 import { check, lock } from "proper-lockfile";
 import { RuntimeConfig, stateToken, token } from "../config";
@@ -103,6 +105,13 @@ const runWatcher = Effect.gen(function* () {
   const workspaces = new Map<WorkspaceId, string>();
   const discoveryErrors = new Map<WorkspaceId, string>();
   const cached = new Map<string, CachedTarget>();
+
+  // Shown until a target's first result, so new workspaces never look unwatched.
+  const pending = {
+    [token]: config.indicatorTemplates.loading,
+    [stateToken]: "v1 loading",
+  };
+
   yield* Effect.addFinalizer(() =>
     Effect.forEach(
       [...workspaces.keys()],
@@ -147,7 +156,10 @@ const runWatcher = Effect.gen(function* () {
         const key = target ? targetKey(target) : "";
 
         if (workspaces.get(workspace.id) !== key)
-          yield* metadata(workspace.id, cleared);
+          yield* metadata(
+            workspace.id,
+            target && !cached.has(key) ? pending : cleared,
+          );
         workspaces.set(workspace.id, key);
 
         return { id: workspace.id, target, error };
@@ -174,6 +186,30 @@ const runWatcher = Effect.gen(function* () {
   let discovery: Effect.Success<typeof discover> | undefined;
   let nextDiscovery = 0;
   let nextPoll = 0;
+  const wake = yield* Queue.sliding<void>(1);
+
+  // New workspaces would otherwise wait for the next periodic discovery.
+  yield* herdr.events
+    .subscribe([
+      { type: "workspace.created" },
+      { type: "workspace.closed" },
+      { type: "worktree.opened" },
+      { type: "pane.created" },
+    ])
+    .pipe(
+      Stream.runForEach(() =>
+        Effect.gen(function* () {
+          nextDiscovery = 0;
+          yield* Queue.offer(wake, undefined);
+        }),
+      ),
+      Effect.catch((cause) =>
+        Effect.logWarning("Workspace event stream unavailable", cause),
+      ),
+      Effect.andThen(Effect.sleep(10_000)),
+      Effect.forever,
+      Effect.forkScoped,
+    );
 
   const refresh = Effect.gen(function* () {
     if (!discovery || (yield* Clock.currentTimeMillis) >= nextDiscovery) {
@@ -193,13 +229,19 @@ const runWatcher = Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
         const previous = cached.get(key);
 
-        if (now < nextPoll || (previous && now < previous.next)) return;
+        // Targets without a first result skip the stagger so new workspaces show promptly.
+        if (previous && (now < nextPoll || now < previous.next)) return;
         yield* Effect.forEach(
           discovered.filter(
             (item) => item.target && targetKey(item.target) === key,
           ),
           (item) =>
-            metadata(item.id, { [token]: config.indicatorTemplates.loading }),
+            metadata(
+              item.id,
+              previous
+                ? { [token]: config.indicatorTemplates.loading }
+                : pending,
+            ),
           { concurrency: config.concurrency, discard: true },
         );
         const started = yield* Clock.currentTimeMillis;
@@ -259,12 +301,18 @@ const runWatcher = Effect.gen(function* () {
           : undefined;
 
         const error = item.error ?? value?.error ?? null;
-        yield* metadata(item.id, {
-          [token]: error
-            ? config.indicatorTemplates.unavailable
-            : indicator(value?.status ?? null, config),
-          [stateToken]: state(value?.status ?? null, error),
-        });
+
+        yield* metadata(
+          item.id,
+          !error && item.target && !value
+            ? pending
+            : {
+                [token]: error
+                  ? config.indicatorTemplates.unavailable
+                  : indicator(value?.status ?? null, config),
+                [stateToken]: state(value?.status ?? null, error),
+              },
+        );
 
         return {
           workspace: item.id,
@@ -290,9 +338,11 @@ const runWatcher = Effect.gen(function* () {
 
     const nextRefresh = Math.min(
       nextDiscovery,
-      ...[...targets.keys()].map((key) =>
-        Math.max(nextPoll, cached.get(key)?.next ?? 0),
-      ),
+      ...[...targets.keys()].map((key) => {
+        const next = cached.get(key)?.next;
+
+        return next === undefined ? 0 : Math.max(nextPoll, next);
+      }),
     );
 
     return Math.max(0, nextRefresh - (yield* Clock.currentTimeMillis));
@@ -308,7 +358,9 @@ const runWatcher = Effect.gen(function* () {
         Effect.retry({ times: 5, schedule: Schedule.spaced(1_000) }),
       );
 
-      yield* Effect.sleep(delay);
+      yield* Queue.take(wake).pipe(
+        Effect.timeoutOrElse({ duration: delay, orElse: () => Effect.void }),
+      );
     }
 
     yield* Effect.logInfo("Workflow watcher disabled");

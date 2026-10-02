@@ -161,8 +161,11 @@ Missing branches and ineligible workspaces still have no indicator; lookup
 errors show unavailable. The picker labels the previous result separately from
 current failures; **Open all Actions in browser** gives access to older runs.
 
-Loading appears when a GitHub status request starts, including refreshes, and is
-replaced when the poll results are published. Cached targets waiting for their
+Loading appears as soon as a workspace's branch is discovered and stays until its
+first result is published. It also appears when a GitHub status request starts,
+including refreshes, and is replaced when the poll results are published. New
+workspaces are discovered as soon as Herdr reports them, and their first poll
+skips the usual spacing between polls. Cached targets waiting for their
 next poll or retry keep their existing status. Once loaded, unavailable status
 takes priority over failures, then in-progress runs, then success. In-progress
 includes all runs that have not completed, including queued and waiting runs,
@@ -299,9 +302,11 @@ v1 failure <sha> <fingerprint>
 v1 running <sha>
 v1 success <sha>
 v1 idle <sha>
+v1 loading
 v1 unavailable
 ```
 
+`loading` means the branch was found but its first result has not arrived yet.
 `idle` covers commits with no runs, or runs that finished without passing or
 failing. The fingerprint is the first 8 hex characters of a SHA-256 over the
 sorted `run-id:attempt` pairs needing attention, so it changes when a different
