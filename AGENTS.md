@@ -16,10 +16,8 @@ Use the versions pinned in `mise.toml` and Bun for dependency changes.
 Keep `bun.lock` in sync with `package.json`.
 
 ```sh
-mise run install
 mise run format
-mise run check
-mise run build
+mise run check ::: build
 bun dist/index.js --help
 ```
 

@@ -344,9 +344,7 @@ and lockfile together when updating it, and recheck protocol compatibility.
 
 ```sh
 mise install
-mise run install
-mise run check
-mise run build
+mise run check ::: build
 bun dist/index.js --help
 ```
 
