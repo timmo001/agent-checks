@@ -62,7 +62,9 @@ export const pasteDraft = Effect.fn("Actions.pasteDraft")(function* (
       message: `The agent in ${paneId} is ${agent.status}; paste when it is ready`,
     });
 
-  yield* herdr.panes.sendText(agent.paneId, `\n${prompt}\n`);
+  // A bracketed paste: typed text arrives one key at a time, and Herdr sends
+  // each newline as Enter.
+  yield* herdr.panes.sendText(agent.paneId, `\u001b[200~${prompt}\u001b[201~`);
 });
 
 /**
