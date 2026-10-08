@@ -18,8 +18,8 @@ Nothing is published. mise and Bun build and run everything from the checkout.
 The watcher follows the current branch of every open GitHub-backed workspace and
 lints each workspace's checkout. It publishes two tokens for Herdr's sidebar:
 
-- `$timmo_agent_checks_ci` starts with the Nerd Font GitHub Actions icon
-  (`U+EAFF`). `!2` after it means two runs need attention, `↻` that runs are in
+- `$timmo_agent_checks_ci` starts with the Nerd Font GitHub workflow icon
+  (`U+F52E`). `!2` after it means two runs need attention, `↻` that runs are in
   progress, `…` that the first result is loading and `⚠` that GitHub or the
   repository could not be read. `✓` and `○` (no runs) need `showSuccess` and
   `showIdle`.
@@ -68,7 +68,7 @@ Add the tokens to Herdr's sidebar and bind the actions:
 rows = [
   ["state_icon", "workspace"],
   ["branch", "git_status",
-    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uEAFF ⚠", fg = "#f9e2af" }, { equals = "\uEAFF …", fg = "#89b4fa" }, { equals = "\uEAFF ↻", fg = "#f9e2af" }, { equals = "\uEAFF ✓", fg = "#a6e3a1" }] },
+    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E ⚠", fg = "#f9e2af" }, { equals = "\uF52E …", fg = "#89b4fa" }, { equals = "\uF52E ↻", fg = "#f9e2af" }, { equals = "\uF52E ✓", fg = "#a6e3a1" }] },
     { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "󰃢 ⚠", fg = "#f9e2af" }, { equals = "󰃢 ↻", fg = "#f9e2af" }, { equals = "󰃢 ✓", fg = "#a6e3a1" }] }],
 ]
 
@@ -157,7 +157,7 @@ Create `config.json` in the directory printed by
   "showIdle": false,
   "showPrevious": true,
   "indicatorTemplates": {
-    "failure": "\uEAFF !{count}",
+    "failure": "\uF52E !{count}",
     "previous": "{status} ↶{count}"
   },
   "lint": {

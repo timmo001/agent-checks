@@ -112,7 +112,7 @@ Panel {
       }))
     if (mode === "overview")
       return [
-        { key: "section:ci", action: "mode", target: "ci", primaryText: "CI", secondaryText: summaryText("ci"), icon: "\uEAFF" },
+        { key: "section:ci", action: "mode", target: "ci", primaryText: "CI", secondaryText: summaryText("ci"), icon: "\uF52E" },
         { key: "section:lint", action: "mode", target: "lint", primaryText: "Lint", secondaryText: summaryText("lint"), icon: "󰃢" }
       ]
     var rows = [backRow("Back to overview")]
@@ -565,7 +565,7 @@ Panel {
             fontFamily: root.contentFontFamily
             iconComponent: Component {
               Text {
-                text: root.mode === "lint" ? "󰃢" : "\uEAFF"
+                text: root.mode === "lint" ? "󰃢" : "\uF52E"
                 color: root.toneColor(root.mode === "lint" ? root.lintTone : root.ciTone)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.display
