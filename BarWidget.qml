@@ -35,10 +35,10 @@ BarWidget {
   readonly property var displaySegments: {
     if (!entry || !checks || checks.stale) return []
     var segments = []
-    if (entry.ciIndicator)
-      segments.push({ text: entry.ciIndicator, color: toneColor(checks.ciTone(entry.ci, entry.ciError)) })
     if (entry.lintIndicator)
       segments.push({ text: entry.lintIndicator, color: toneColor(checks.lintTone(entry.lint)) })
+    if (entry.ciIndicator)
+      segments.push({ text: entry.ciIndicator, color: toneColor(checks.ciTone(entry.ci, entry.ciError)) })
     return segments
   }
   readonly property string tooltipText: {
