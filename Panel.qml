@@ -16,7 +16,10 @@ Panel {
   // "agent" picks a launcher for agentKind.
   property string view: "checks"
   property string cwd: ""
-  property string paneId: ""
+  // Set when Herdr opened the panel for a pane; otherwise actions use the
+  // pane focused when they run.
+  property string requestedPane: ""
+  readonly property string paneId: requestedPane || (service ? service.paneId : "")
   property string expandedKey: ""
 
   property var checkout: null
@@ -271,9 +274,10 @@ Panel {
     return service.command(args.concat(["--cwd", cwd, "--json"]))
   }
 
-  // Paste and launch act on the pane the panel was opened for.
+  // Paste and launch act on the pane Herdr opened the panel for, or else the
+  // pane focused when they run.
   function paneArgs() {
-    return paneId ? ["--pane", paneId] : []
+    return requestedPane ? ["--pane", requestedPane] : []
   }
 
   function refreshStatus() {
@@ -397,7 +401,7 @@ Panel {
       ciReportKey = ""
     }
     cwd = nextCwd
-    paneId = request.pane || (service ? service.paneId : "")
+    requestedPane = request.pane || ""
     statusError = ""
     ciReportError = ""
     lintError = ""

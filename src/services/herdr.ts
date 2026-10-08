@@ -8,6 +8,7 @@ import {
 } from "@timmo001/effect-herdr";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
 import { RuntimeConfig, ciToken, lintToken, pluginId } from "../config";
+import { ActionError } from "../errors";
 
 export const herdrLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -58,13 +59,31 @@ export function checkout(workspace: Workspace, panes: ReadonlyArray<Pane>) {
   );
 }
 
-/** The pane a Herdr plugin action was invoked from. */
+/**
+ * The pane a Herdr plugin action was invoked from, or outside an action the
+ * pane focused in the session.
+ */
 export const focusedPane = Effect.gen(function* () {
-  const context = yield* Schema.decodeEffect(
-    Schema.fromJsonString(
-      Schema.Struct({ workspace_id: WorkspaceId, focused_pane_id: PaneId }),
-    ),
-  )(process.env.HERDR_PLUGIN_CONTEXT_JSON ?? "{}");
+  const herdr = yield* HerdrSdk;
 
-  return yield* (yield* HerdrSdk).panes.get(context.focused_pane_id);
+  if (process.env.HERDR_PLUGIN_CONTEXT_JSON) {
+    const context = yield* Schema.decodeEffect(
+      Schema.fromJsonString(
+        Schema.Struct({ workspace_id: WorkspaceId, focused_pane_id: PaneId }),
+      ),
+    )(process.env.HERDR_PLUGIN_CONTEXT_JSON);
+
+    return yield* herdr.panes.get(context.focused_pane_id);
+  }
+
+  const snapshot = yield* herdr.session.snapshot();
+
+  const pane = snapshot.panes.find(
+    (value) => value.id === Option.getOrNull(snapshot.focusedPaneId),
+  );
+
+  if (!pane)
+    return yield* new ActionError({ message: "No Herdr pane is focused" });
+
+  return pane;
 });
