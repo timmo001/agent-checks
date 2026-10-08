@@ -15,7 +15,6 @@ Panel {
 
   // "agent" picks a launcher for agentKind.
   property string view: "checks"
-  property var openSections: ({ ci: true, lint: true })
   property string cwd: ""
   property string paneId: ""
   property string expandedKey: ""
@@ -62,10 +61,13 @@ Panel {
   readonly property var launcherRows: launchers.map(function(launcher) {
     return { key: "launcher:" + launcher.id, action: "launcher", launcher: launcher.id, primaryText: launcher.label, icon: "󱚣" }
   })
-  readonly property var sections: [sectionEntry("ci", "CI"), sectionEntry("lint", "Lint")]
+  readonly property var sections: [
+    { kind: "ci", title: "CI", rows: sectionRows("ci") },
+    { kind: "lint", title: "Lint", rows: sectionRows("lint") }
+  ]
   readonly property var panelRows: view === "agent"
     ? [backRow()].concat(launcherRows)
-    : sections.reduce(function(rows, section) { return rows.concat([section.toggle], section.rows) }, [])
+    : sections.reduce(function(rows, section) { return rows.concat(section.rows) }, [])
 
   // Each section's status, message and the retry action its refresh button runs.
   function sectionState(kind) {
@@ -108,16 +110,6 @@ Panel {
     if (result.status === "clean")
       return { status: "empty", message: "Clean · " + result.files + " changed file" + (result.files === 1 ? "" : "s") + " · " + relative(result.finished), retry: "lint" }
     return { status: "loaded", message: "", retry: "" }
-  }
-
-  // A collapsible section: its heading's toggle row, then its rows while open.
-  function sectionEntry(kind, title) {
-    return {
-      kind: kind,
-      title: title,
-      toggle: { key: "toggle:" + kind, action: "toggle", kind: kind, primaryText: title },
-      rows: openSections[kind] === true ? sectionRows(kind) : []
-    }
   }
 
   function sectionRows(kind) {
@@ -327,7 +319,7 @@ Panel {
   function refresh() {
     refreshStatus()
     loadCiReport()
-    if (openSections.lint) runLint(false)
+    runLint(false)
   }
 
   function runAction(args, closeOnSuccess) {
@@ -370,7 +362,6 @@ Panel {
 
   function activateAction(entry) {
     if (entry.action === "back") showView("checks")
-    else if (entry.action === "toggle") toggleSection(entry.kind)
     else if (entry.action === "paste") runAction(["paste", "--kind", entry.kind].concat(paneArgs()), true)
     else if (entry.action === "copy") copy(entry.kind)
     else if (entry.action === "launch") showAgentPicker(entry.kind, false)
@@ -386,15 +377,6 @@ Panel {
     Qt.callLater(scrollCursorIntoView)
   }
 
-  function toggleSection(kind) {
-    var next = Object.assign({}, openSections)
-    next[kind] = !next[kind]
-    openSections = next
-    if (!next[kind]) return
-    if (kind === "ci") loadCiReport()
-    else if (!lint && !lintProcess.running) runLint(false)
-  }
-
   function showView(next) {
     view = next
     actionError = ""
@@ -402,7 +384,7 @@ Panel {
     panelFlick.contentY = 0
   }
 
-  // `request` is { mode, cwd, pane }; mode ci or lint opens only that
+  // `request` is { mode, cwd, pane }; mode ci or lint scrolls to that
   // section. Empty values fall back to the focused pane.
   function open(request) {
     var nextCwd = request.cwd || (service ? service.repositoryPath : "")
@@ -417,18 +399,29 @@ Panel {
     ciReportError = ""
     lintError = ""
     var mode = request.mode || "overview"
-    openSections = { ci: mode !== "lint", lint: mode !== "ci" }
     expandedKey = ""
     showView("checks")
     refresh()
     controller.show()
     Qt.callLater(function() {
-      if (mode !== "overview") filterController.cursorIndex = filterController.indexForKey("toggle:" + mode)
+      if (mode !== "overview") focusSection(mode)
       filterController.forceActiveFocus()
     })
   }
   function close() { controller.hide() }
   function toggle() { if (opened) close(); else open({ mode: "overview" }) }
+
+  // Selects the section's first row and scrolls its heading to the top.
+  function focusSection(kind) {
+    var index = sections.findIndex(function(section) { return section.kind === kind })
+    if (index < 0) return
+    if (sections[index].rows.length > 0)
+      filterController.cursorIndex = filterController.indexForKey(sections[index].rows[0].key)
+    var item = sectionRepeater.itemAt(index)
+    if (item)
+      panelFlick.contentY = Math.min(item.mapToItem(contentColumn, 0, 0).y,
+        Math.max(0, panelFlick.contentHeight - panelFlick.height))
+  }
 
   function itemForEntry(entry) {
     if (!entry) return null
@@ -437,7 +430,6 @@ Panel {
     for (var i = 0; i < sections.length; i++) {
       var sectionItem = sectionRepeater.itemAt(i)
       if (!sectionItem) continue
-      if (sections[i].toggle.key === entry.key) return sectionItem.heading
       var index = sections[i].rows.findIndex(function(row) { return row.key === entry.key })
       if (index >= 0) return sectionItem.rowAt(index)
     }
@@ -631,7 +623,6 @@ Panel {
               id: sectionColumn
               required property var modelData
               readonly property alias heading: sectionHeading
-              readonly property bool sectionOpen: root.openSections[modelData.kind] === true
               readonly property var info: modelData.kind === "ci" ? root.ciSection : root.lintSection
               width: contentColumn.width
               spacing: Style.space(4)
@@ -646,11 +637,6 @@ Panel {
                 title: sectionColumn.modelData.title
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
-                collapsible: true
-                expanded: sectionColumn.sectionOpen
-                toggleHasCursor: filterController.cursorIndex === filterController.indexForKey(sectionColumn.modelData.toggle.key)
-                onToggleHovered: filterController.cursorIndex = filterController.indexForKey(sectionColumn.modelData.toggle.key)
-                onToggleRequested: root.toggleSection(sectionColumn.modelData.kind)
                 refreshable: true
                 refreshing: statusProcess.running
                   || (sectionColumn.modelData.kind === "ci" ? ciProcess.running : lintProcess.running)
@@ -693,7 +679,6 @@ Panel {
               }
 
               Column {
-                visible: sectionColumn.sectionOpen
                 width: parent.width
                 spacing: Style.space(2)
 
