@@ -1,4 +1,4 @@
-# Herdr Workflow Watch
+# Agent Checks
 
 ## Project
 
@@ -6,7 +6,13 @@
 - `src/index.ts` owns the Effect CLI entrypoint and platform layers.
 - Use lowercase filenames, with kebab-case for multiword names.
 - `src/commands/` owns CLI workflows, `src/services/` owns external clients and
-  subprocesses, and `src/actions/` owns selection data, agent handling and prompts.
+  subprocesses, and `src/actions/` owns prompts and agent handling.
+- `herdr-plugin.toml` is the Herdr plugin; `manifest.json` and the root QML
+  files are the Omarchy shell plugin.
+- `FilterablePanel`, `LoadState`, `OutputView`, `PanelFlickable`, `PanelHeader`
+  and `SectionHeading` are copies of the shared dotfiles panel components. Change
+  them in dotfiles and run `dot omarchy-plugin sync-components`; don't edit the
+  copies here.
 - `dist/` is generated Bun-targeted module output and stays untracked.
 - The package is private; distribution is through the GitHub repository.
 
@@ -17,11 +23,12 @@ Keep `bun.lock` in sync with `package.json`.
 
 ```sh
 mise run format
-mise run check ::: build
+mise run check ::: build ::: check:plugin
 bun dist/index.js --help
 ```
 
 `check` runs local Oxlint, strict TypeScript checking and formatting checks.
+`check:plugin` validates the Omarchy manifest and syntax-checks the QML.
 CI runs `bun install --frozen-lockfile` first. Check and build tasks must not
 install dependencies.
 
@@ -40,7 +47,7 @@ install dependencies.
 
 ## Validation
 
-Validate with lint, type-checking, formatting, build and CLI help.
-Do not add tests for the scaffold or automate UX testing; the owner tests
+Validate with lint, type-checking, formatting, build, the plugin checks and CLI
+help. Do not add tests for the scaffold or automate UX testing; the owner tests
 interactive behaviour. Keep the project small and add modules when behaviour
 needs them.
