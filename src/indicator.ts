@@ -1,5 +1,5 @@
 import type { RuntimeConfig } from "./config";
-import type { LintState } from "./lint";
+import { type LintState, failing } from "./lint";
 import { attention, type Status } from "./services/github";
 
 export function ciIndicator(
@@ -67,7 +67,7 @@ export function lintIndicator(
     case "failed":
       return templates.failure.replaceAll(
         "{count}",
-        String(lint.result.checks.length),
+        String(failing(lint.result.checks).length),
       );
     case "timedOut":
       return templates.timedOut;

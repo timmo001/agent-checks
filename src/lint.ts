@@ -8,10 +8,18 @@ import { plain } from "./text";
 
 const LintCheck = Schema.Struct({
   name: Schema.String,
-  status: Schema.Literals(["failed", "timedOut"]),
+  status: Schema.Literals(["passed", "skipped", "failed", "timedOut"]),
   command: Schema.String,
   output: Schema.String,
+  durationMs: Schema.NullOr(Schema.Finite),
 });
+
+type LintCheck = typeof LintCheck.Type;
+
+export const failing = (checks: readonly LintCheck[]) =>
+  checks.filter(
+    (value) => value.status === "failed" || value.status === "timedOut",
+  );
 
 const LintResult = Schema.Struct({
   fingerprint: Schema.String,
@@ -48,9 +56,10 @@ const Report = Schema.Struct({
   results: Schema.Array(
     Schema.Struct({
       name: Schema.String,
-      status: Schema.String,
+      status: Schema.Literals(["passed", "failed", "timed-out", "skipped"]),
       output: Schema.optionalKey(Schema.String),
       command: Schema.optionalKey(Schema.Array(Schema.String)),
+      durationMs: Schema.optionalKey(Schema.Finite),
     }),
   ),
   message: Schema.optionalKey(Schema.String),
@@ -58,6 +67,13 @@ const Report = Schema.Struct({
 
 const defaultMessage =
   "Please fix these, then run all relevant checks and keep going until they pass.";
+
+const checkStatus = {
+  passed: "passed",
+  failed: "failed",
+  "timed-out": "timedOut",
+  skipped: "skipped",
+} as const;
 
 const shellQuote = (arg: string) =>
   /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`;
@@ -118,7 +134,7 @@ export const readLint = Effect.fn("Lint.read")(function* (root: string) {
 export function lintPrompt(result: LintResult) {
   return plain(
     [
-      ...result.checks.map((value) =>
+      ...failing(result.checks).map((value) =>
         value.status === "timedOut"
           ? `$ ${value.command}\n(timed out)`
           : `$ ${value.command}\n${value.output}`,
@@ -154,30 +170,22 @@ const runCommand = Effect.fn("Lint.runCommand")(function* (root: string) {
       ).slice(-2_000),
     } as const;
 
-  const checks = report.value.results.flatMap((result) =>
-    result.status === "failed" || result.status === "timed-out"
-      ? [
-          {
-            name: result.name,
-            status:
-              result.status === "failed"
-                ? ("failed" as const)
-                : ("timedOut" as const),
-            command: (result.command ?? [result.name])
-              .map(shellQuote)
-              .join(" "),
-            output: plain(result.output ?? "").trimEnd(),
-          },
-        ]
-      : [],
-  );
+  const checks = report.value.results.map((result): LintCheck => ({
+    name: result.name,
+    status: checkStatus[result.status],
+    command: (result.command ?? [result.name]).map(shellQuote).join(" "),
+    output: plain(result.output ?? "").trimEnd(),
+    durationMs: result.durationMs ?? null,
+  }));
+
+  const failed = failing(checks);
 
   return {
     status: !report.value.configured
       ? "unconfigured"
-      : checks.some((value) => value.status === "failed")
+      : failed.some((value) => value.status === "failed")
         ? "failed"
-        : checks.length
+        : failed.length
           ? "timedOut"
           : "clean",
     files: report.value.files.length,

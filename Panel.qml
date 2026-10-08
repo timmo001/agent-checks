@@ -51,6 +51,7 @@ Panel {
   readonly property string ciTone: service && checkout ? service.ciTone(ci, checkout.ciError) : "none"
   readonly property string lintTone: service ? service.lintTone(lint) : "none"
   readonly property var lintChecks: lint && lint.result ? lint.result.checks : []
+  readonly property var failingChecks: lintChecks.filter(function(check) { return check.status === "failed" || check.status === "timedOut" })
   readonly property bool ciReady: ciReport !== null && ciReportKey === failedRunsKey
   readonly property string failedRunsKey: ci ? failedRuns.map(function(run) {
     return run.id + "." + run.run_attempt
@@ -122,7 +123,7 @@ Panel {
       if (ciTone === "failed") rows = rows.concat(actionRows("ci"))
     } else {
       rows = rows.concat(lintChecks.map(function(check) {
-        return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: check.command }
+        return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: checkText(check) }
       }))
       if (lintTone === "failed") rows = rows.concat(actionRows("lint"))
     }
@@ -154,7 +155,7 @@ Panel {
     var state = kind === "ci" ? ciSection : lintSection
     if (state.status !== "loaded") return state.message
     if (kind === "ci") return failedRuns.length + " failed run" + (failedRuns.length === 1 ? "" : "s") + previousText()
-    var failed = lintChecks.length
+    var failed = failingChecks.length
     return failed + " failing check" + (failed === 1 ? "" : "s")
   }
 
@@ -182,6 +183,18 @@ Panel {
   function runText(run) {
     return (run.status === "completed" ? (run.conclusion || "completed") : run.status.replace("_", " "))
       + (run.run_attempt > 1 ? " · attempt " + run.run_attempt : "")
+  }
+
+  function checkTone(check) {
+    if (check.status === "passed") return "ok"
+    if (check.status === "skipped") return "none"
+    return "failed"
+  }
+
+  function checkText(check) {
+    if (check.status === "skipped") return "skipped · no matching changed files"
+    if (check.status === "passed") return "passed" + (check.durationMs !== null ? " in " + (check.durationMs / 1000).toFixed(1) + "s" : "")
+    return check.command
   }
 
   function inProgressText() {
@@ -618,7 +631,7 @@ Panel {
                 readonly property bool expanded: root.expandedKey === modelData.key
                 readonly property var report: modelData.run ? root.reportFor(modelData.run) : null
                 readonly property string tone: modelData.run ? root.runTone(modelData.run)
-                  : (modelData.check ? "failed"
+                  : (modelData.check ? root.checkTone(modelData.check)
                     : (modelData.key === "section:ci" ? root.ciTone : (modelData.key === "section:lint" ? root.lintTone : "")))
                 width: contentColumn.width
                 implicitHeight: rowColumn.implicitHeight + Style.space(12)
