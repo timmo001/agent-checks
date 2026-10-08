@@ -131,13 +131,20 @@ export const readLint = Effect.fn("Lint.read")(function* (root: string) {
   return held ? state.value : { ...state.value, running: false };
 });
 
-export function lintPrompt(result: LintResult) {
+export function lintPrompt(root: string, result: LintResult) {
+  const home = process.env.HOME;
+
+  const cwd =
+    home && (root === home || root.startsWith(`${home}/`))
+      ? `~${root.slice(home.length)}`
+      : root;
+
   return plain(
     [
       ...failing(result.checks).map((value) =>
         value.status === "timedOut"
-          ? `$ ${value.command}\n(timed out)`
-          : `$ ${value.command}\n${value.output}`,
+          ? `${cwd} $ ${value.command}\n(timed out)`
+          : `${cwd} $ ${value.command}\n${value.output}`,
       ),
       result.message,
     ]

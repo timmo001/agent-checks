@@ -72,7 +72,7 @@ export const checkoutStatus = Effect.fn("Status.checkout")(function* (
     lint,
     lintPrompt:
       lint?.result?.status === "failed" || lint?.result?.status === "timedOut"
-        ? lintPrompt(lint.result)
+        ? lintPrompt(root, lint.result)
         : null,
   };
 });

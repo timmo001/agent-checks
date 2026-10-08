@@ -118,7 +118,7 @@ const lintFor = Effect.fn("Checks.lintFor")(function* (root: string) {
       message: `Lint could not run: ${result.error ?? "unknown error"}`,
     });
 
-  return lintPrompt(result);
+  return lintPrompt(root, result);
 });
 
 export const paths = Effect.gen(function* () {
@@ -166,7 +166,7 @@ export const lintRun = Effect.fn("Checks.lintRun")(function* (options: {
       state.running
         ? "Lint is already running"
         : state.result
-          ? lintPrompt(state.result) || state.result.status
+          ? lintPrompt(state.root, state.result) || state.result.status
           : "No lint result",
     );
 });
