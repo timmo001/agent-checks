@@ -36,3 +36,24 @@ depends = ["lint", "typecheck", "format:check"]
 description = "Build the Bun module into dist"
 depends = ["install"]
 run = "bun run build"
+
+[tasks.validate]
+description = "Validate the Omarchy plugin manifest"
+# node_modules holds symlinks the validator refuses, so check the files git
+# would ship, as an installed checkout has them.
+run = '''
+dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d '' file; do
+  if [ -e "$file" ]; then cp --parents -t "$dir" "$file"; fi
+done
+omarchy plugin validate "$dir"
+'''
+
+[tasks."lint:qml"]
+description = "Lint the plugin QML"
+run = "/usr/lib/qt6/bin/qmllint --max-warnings 0 *.qml"
+
+[tasks."check:plugin"]
+description = "Validate the plugin manifest and lint the QML"
+depends = ["validate", "lint:qml"]

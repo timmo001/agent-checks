@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "timmo.agent-checks",
+  "name": "Agent Checks",
+  "version": "0.1.0",
+  "author": "Timmo",
+  "license": "Apache-2.0",
+  "description": "CI and lint status for the focused Herdr workspace",
+  "kinds": ["service", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Agent Checks",
+    "description": "Shows CI and lint status for the focused Herdr workspace",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "primaryOnly": false,
+      "primaryOutput": ""
+    },
+    "schema": [
+      {
+        "key": "primaryOnly",
+        "type": "boolean",
+        "label": "Primary output only",
+        "defaultValue": false
+      },
+      {
+        "key": "primaryOutput",
+        "type": "string",
+        "label": "Primary output",
+        "defaultValue": "",
+        "description": "Optional output name used when primary output only is enabled."
+      }
+    ]
+  }
+}
