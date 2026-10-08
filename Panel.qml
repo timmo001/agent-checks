@@ -200,9 +200,10 @@ Panel {
   }
 
   function checkText(check) {
-    if (check.status === "skipped") return "skipped · no matching changed files"
-    if (check.status === "passed") return "passed" + (check.durationMs !== null ? " in " + (check.durationMs / 1000).toFixed(1) + "s" : "")
-    return check.command
+    if (check.status === "skipped") return "skipped · no matching changed files · " + check.command
+    if (check.status === "passed") return "passed" + (check.durationMs !== null ? " in " + (check.durationMs / 1000).toFixed(1) + "s" : "") + " · " + check.command
+    if (check.status === "timedOut") return "timed out · " + check.command
+    return "failed · " + check.command
   }
 
   function inProgressText() {
