@@ -276,11 +276,11 @@ export class RuntimeConfig extends Context.Service<
           command: settings.lint?.command ?? ["dot", "agent-lint", "--json"],
           timeoutMs: (settings.lint?.timeoutSeconds ?? 600) * 1000,
           templates: {
-            failure: lintTemplates?.failure ?? "󰃢 !{count}",
-            timedOut: lintTemplates?.timedOut ?? "󰃢 ⏱",
-            running: lintTemplates?.running ?? "󰃢 ↻",
-            clean: lintTemplates?.clean ?? "󰃢 ✓",
-            unavailable: lintTemplates?.unavailable ?? "󰃢 ⚠",
+            failure: lintTemplates?.failure ?? "\uF4B1  !{count}",
+            timedOut: lintTemplates?.timedOut ?? "\uF4B1  ⏱",
+            running: lintTemplates?.running ?? "\uF4B1  ↻",
+            clean: lintTemplates?.clean ?? "\uF4B1  ✓",
+            unavailable: lintTemplates?.unavailable ?? "\uF4B1  ⚠",
           },
         },
       });
