@@ -1,9 +1,9 @@
-id = "timmo.workflow-watch"
-name = "Workflow Watch"
+id = "timmo.agent-checks"
+name = "Agent Checks"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "GitHub workflow failures for each workspace"
-platforms = ["linux", "macos"]
+description = "CI and lint status for each workspace, with an Omarchy panel"
+platforms = ["linux"]
 
 [[build]]
 command = ["mise", "exec", "--", "bun", "install", "--frozen-lockfile"]
@@ -24,20 +24,30 @@ command = ["mise", "exec", "--", "bun", "dist/index.js", "start"]
 
 [[actions]]
 id = "start"
-title = "Start workflow watcher"
+title = "Start the Agent Checks watcher"
 contexts = ["global", "workspace"]
 command = ["mise", "exec", "--", "bun", "dist/index.js", "start"]
 
 [[actions]]
 id = "open"
-title = "Open workflow failures"
+title = "Open CI checks"
 contexts = ["workspace", "pane"]
-command = ["mise", "exec", "--", "bun", "dist/index.js", "open"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "open", "--kind", "ci"]
 
-[[panes]]
-id = "picker"
-title = "Workflow failures"
-placement = "popup"
-width = "80%"
-height = 18
-command = ["mise", "--quiet", "exec", "--", "bun", "dist/index.js", "picker"]
+[[actions]]
+id = "lint"
+title = "Open lint checks"
+contexts = ["workspace", "pane"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "open", "--kind", "lint"]
+
+[[actions]]
+id = "paste-ci"
+title = "Paste CI failures into this agent"
+contexts = ["pane"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "paste", "--kind", "ci"]
+
+[[actions]]
+id = "paste-lint"
+title = "Paste lint failures into this agent"
+contexts = ["pane"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "paste", "--kind", "lint"]

@@ -49,7 +49,7 @@ export const waitForUpdate = Effect.gen(function* () {
       if (lastError !== message)
         yield* reportError(
           Cause.fail(result.failure),
-          "Workflow Watch update deferred",
+          "Agent Checks update deferred",
         );
       lastError = message;
       continue;

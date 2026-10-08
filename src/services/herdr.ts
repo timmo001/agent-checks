@@ -1,26 +1,13 @@
 import {
   HerdrSdk,
-  Pane,
-  PaneProcess,
+  PaneId,
   WorkspaceId,
   herdrSdkLayerFromOptions,
+  type Pane,
   type Workspace,
 } from "@timmo001/effect-herdr";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
-import { RuntimeConfig, pluginId, stateToken, token } from "../config";
-
-export const Origin = Schema.Struct({
-  workspace: WorkspaceId,
-  pane: Pane,
-  processes: Schema.Array(
-    Schema.Struct({
-      pid: PaneProcess.fields.pid,
-      argv: PaneProcess.fields.argv,
-    }),
-  ),
-});
-
-export type Origin = typeof Origin.Type;
+import { RuntimeConfig, ciToken, lintToken, pluginId } from "../config";
 
 export const herdrLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -39,7 +26,7 @@ export const enabled = Effect.gen(function* () {
   return plugins.some((plugin) => plugin.id === pluginId && plugin.enabled);
 });
 
-export const cleared = { [token]: null, [stateToken]: null };
+export const cleared = { [ciToken]: null, [lintToken]: null };
 
 export const metadata = Effect.fn("Herdr.metadata")(function* (
   id: WorkspaceId,
@@ -70,3 +57,14 @@ export function checkout(workspace: Workspace, panes: ReadonlyArray<Pane>) {
     )
   );
 }
+
+/** The pane a Herdr plugin action was invoked from. */
+export const focusedPane = Effect.gen(function* () {
+  const context = yield* Schema.decodeEffect(
+    Schema.fromJsonString(
+      Schema.Struct({ workspace_id: WorkspaceId, focused_pane_id: PaneId }),
+    ),
+  )(process.env.HERDR_PLUGIN_CONTEXT_JSON ?? "{}");
+
+  return yield* (yield* HerdrSdk).panes.get(context.focused_pane_id);
+});

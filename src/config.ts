@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect";
 
-export const pluginId = "timmo.workflow-watch";
+export const pluginId = "timmo.agent-checks";
 
-export const token = "timmo_workflow_watch";
+export const ciToken = "timmo_agent_checks_ci";
 
-export const stateToken = "timmo_workflow_watch_state";
+export const lintToken = "timmo_agent_checks_lint";
 
 export function stateDirectory(root: string, socket: string) {
   return join(
@@ -85,6 +85,23 @@ const IndicatorTemplates = Schema.Struct({
   previous: Schema.optionalKey(Text),
 });
 
+const LintTemplates = Schema.Struct({
+  failure: Schema.optionalKey(Text),
+  timedOut: Schema.optionalKey(Text),
+  running: Schema.optionalKey(Text),
+  clean: Schema.optionalKey(Text),
+  unavailable: Schema.optionalKey(Text),
+});
+
+const LintSettings = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  command: Schema.optionalKey(Schema.NonEmptyArray(Text)),
+  timeoutSeconds: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 3600 })),
+  ),
+  templates: Schema.optionalKey(LintTemplates),
+});
+
 const Settings = Schema.Struct({
   pollSeconds: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 3600 })),
@@ -103,13 +120,19 @@ const Settings = Schema.Struct({
   showPrevious: Schema.optionalKey(Schema.Boolean),
   indicatorTemplates: Schema.optionalKey(IndicatorTemplates),
   launchers: Schema.optionalKey(Schema.Array(Launcher)),
+  lint: Schema.optionalKey(LintSettings),
 });
 
+// The Omarchy panel runs commands outside Herdr with only the socket set, so
+// the plugin directories fall back to Herdr's own layout.
 const Environment = Schema.Struct({
   HERDR_SOCKET_PATH: Text,
-  HERDR_PLUGIN_ROOT: Text,
-  HERDR_PLUGIN_CONFIG_DIR: Text,
-  HERDR_PLUGIN_STATE_DIR: Text,
+  HERDR_PLUGIN_ROOT: Schema.optionalKey(Text),
+  HERDR_PLUGIN_CONFIG_DIR: Schema.optionalKey(Text),
+  HERDR_PLUGIN_STATE_DIR: Schema.optionalKey(Text),
+  HOME: Text,
+  XDG_CONFIG_HOME: Schema.optionalKey(Text),
+  XDG_STATE_HOME: Schema.optionalKey(Text),
 });
 
 export const loadSettings = Effect.fn("Config.loadSettings")(function* (
@@ -167,8 +190,14 @@ export class RuntimeConfig extends Context.Service<
     readonly showPrevious: boolean;
     readonly indicatorTemplates: Required<typeof IndicatorTemplates.Type>;
     readonly launchers: ReadonlyArray<typeof Launcher.Type>;
+    readonly lint: {
+      readonly enabled: boolean;
+      readonly command: readonly [string, ...Array<string>];
+      readonly timeoutMs: number;
+      readonly templates: Required<typeof LintTemplates.Type>;
+    };
   }
->()("herdr-workflow-watch/Config") {
+>()("agent-checks/Config") {
   static readonly layer = Layer.effect(
     RuntimeConfig,
     Effect.gen(function* () {
@@ -182,25 +211,44 @@ export class RuntimeConfig extends Context.Service<
           (cause) =>
             new ConfigError({
               message:
-                "Workflow Watch is missing its Herdr environment. Start it through the plugin.",
+                "Agent Checks needs HERDR_SOCKET_PATH. Run it through the Herdr plugin or the Omarchy panel.",
               cause,
             }),
         ),
       );
 
-      const file = path.join(env.HERDR_PLUGIN_CONFIG_DIR, "config.json");
+      const configDirectory =
+        env.HERDR_PLUGIN_CONFIG_DIR ??
+        path.join(
+          env.XDG_CONFIG_HOME ?? path.join(env.HOME, ".config"),
+          "herdr",
+          "plugins",
+          "config",
+          pluginId,
+        );
+
+      const file = path.join(configDirectory, "config.json");
       const { settings, launchers, revision } = yield* loadSettings(file);
 
       const state = stateDirectory(
-        env.HERDR_PLUGIN_STATE_DIR,
+        env.HERDR_PLUGIN_STATE_DIR ??
+          path.join(
+            env.XDG_STATE_HOME ?? path.join(env.HOME, ".local", "state"),
+            "herdr",
+            "plugins",
+            pluginId,
+          ),
         env.HERDR_SOCKET_PATH,
       );
 
       yield* fs.makeDirectory(state, { recursive: true, mode: 0o700 });
 
+      const templates = settings.indicatorTemplates;
+      const lintTemplates = settings.lint?.templates;
+
       return RuntimeConfig.of({
         socket: env.HERDR_SOCKET_PATH,
-        root: env.HERDR_PLUGIN_ROOT,
+        root: env.HERDR_PLUGIN_ROOT ?? path.resolve(import.meta.dirname, ".."),
         state,
         settingsFile: file,
         settingsRevision: revision,
@@ -214,16 +262,27 @@ export class RuntimeConfig extends Context.Service<
         showIdle: settings.showIdle ?? false,
         showPrevious: settings.showPrevious ?? false,
         indicatorTemplates: {
-          failure: settings.indicatorTemplates?.failure ?? "CI: !{count}",
-          unavailable: settings.indicatorTemplates?.unavailable ?? "CI: ?",
-          loading: settings.indicatorTemplates?.loading ?? "CI: …",
-          inProgress: settings.indicatorTemplates?.inProgress ?? "CI: ↻",
-          success: settings.indicatorTemplates?.success ?? "CI: ✓",
-          idle: settings.indicatorTemplates?.idle ?? "CI: ○",
-          previous:
-            settings.indicatorTemplates?.previous ?? "{status} ({distance})",
+          failure: templates?.failure ?? "CI !{count}",
+          unavailable: templates?.unavailable ?? "CI ⚠",
+          loading: templates?.loading ?? "CI …",
+          inProgress: templates?.inProgress ?? "CI ↻",
+          success: templates?.success ?? "CI ✓",
+          idle: templates?.idle ?? "CI ○",
+          previous: templates?.previous ?? "{status} ↶{count}",
         },
         launchers,
+        lint: {
+          enabled: settings.lint?.enabled ?? true,
+          command: settings.lint?.command ?? ["dot", "agent-lint", "--json"],
+          timeoutMs: (settings.lint?.timeoutSeconds ?? 600) * 1000,
+          templates: {
+            failure: lintTemplates?.failure ?? "lint !{count}",
+            timedOut: lintTemplates?.timedOut ?? "lint ⏱",
+            running: lintTemplates?.running ?? "lint ↻",
+            clean: lintTemplates?.clean ?? "lint ✓",
+            unavailable: lintTemplates?.unavailable ?? "lint ⚠",
+          },
+        },
       });
     }).pipe(
       Effect.mapError((cause) =>
@@ -231,29 +290,10 @@ export class RuntimeConfig extends Context.Service<
           ? cause
           : new ConfigError({
               message:
-                "Could not load Workflow Watch configuration. Check the plugin config and state directories.",
+                "Could not load Agent Checks configuration. Check the plugin config and state directories.",
               cause,
             }),
       ),
     ),
-  );
-}
-
-export class ClientConfig extends Context.Service<
-  ClientConfig,
-  { readonly timeoutMs: number }
->()("herdr-workflow-watch/ClientConfig") {
-  static readonly layer = Layer.effect(
-    ClientConfig,
-    Effect.gen(function* () {
-      const config = yield* RuntimeConfig;
-
-      return ClientConfig.of({ timeoutMs: config.timeoutMs });
-    }),
-  );
-
-  static readonly standalone = Layer.succeed(
-    ClientConfig,
-    ClientConfig.of({ timeoutMs: 30_000 }),
   );
 }

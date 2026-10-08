@@ -1,5 +1,5 @@
-import { Api, Gh } from "@timmo001/effect-gh";
-import { Context, Effect, Layer, Match, Schema, Stream } from "effect";
+import { Api, Gh, Workflow } from "@timmo001/effect-gh";
+import { Context, Effect, Layer, Schema } from "effect";
 import { Process } from "./process";
 
 export class GitHubError extends Schema.TaggedError<GitHubError>()(
@@ -87,7 +87,7 @@ export class GitHub extends Context.Service<
   GitHub,
   {
     readonly discover: (
-      cwd: string,
+      root: string,
     ) => Effect.Effect<Target | null, GitHubError>;
     readonly status: (
       target: Target,
@@ -101,31 +101,20 @@ export class GitHub extends Context.Service<
       GitHubError
     >;
   }
->()("herdr-workflow-watch/GitHub") {
+>()("agent-checks/GitHub") {
   static readonly layer = Layer.effect(
     GitHub,
     Effect.gen(function* () {
       const process = yield* Process;
       const gh = yield* Gh;
 
+      // Takes a checkout root from gitRoot.
       const discover = Effect.fn("GitHub.discover")(
-        function* (cwd: string) {
-          const root = yield* process.run(
-            "git",
-            ["rev-parse", "--show-toplevel"],
-            cwd,
-          );
-
-          if (root.code !== 0) {
-            if (root.stderr.includes("not a git repository")) return null;
-
-            return yield* new GitHubError({ message: root.stderr });
-          }
-
+        function* (root: string) {
           const branch = yield* process.run(
             "git",
             ["symbolic-ref", "--quiet", "--short", "HEAD"],
-            root.stdout,
+            root,
           );
 
           if (branch.code === 1) return null;
@@ -136,13 +125,13 @@ export class GitHub extends Context.Service<
           const upstream = yield* process.run(
             "git",
             ["config", "--get", `branch.${branch.stdout}.remote`],
-            root.stdout,
+            root,
           );
 
           const merge = yield* process.run(
             "git",
             ["config", "--get", `branch.${branch.stdout}.merge`],
-            root.stdout,
+            root,
           );
 
           if (upstream.code > 1 || merge.code > 1)
@@ -150,11 +139,9 @@ export class GitHub extends Context.Service<
               message: upstream.stderr || merge.stderr,
             });
 
-          const remotes = (yield* process.text(
-            "git",
-            ["remote"],
-            root.stdout,
-          )).split("\n");
+          const remotes = (yield* process.text("git", ["remote"], root)).split(
+            "\n",
+          );
 
           const candidates = [...new Set([upstream.stdout, "origin"])];
 
@@ -164,7 +151,7 @@ export class GitHub extends Context.Service<
             const url = yield* process.text(
               "git",
               ["remote", "get-url", remote],
-              root.stdout,
+              root,
             );
 
             const match =
@@ -175,7 +162,7 @@ export class GitHub extends Context.Service<
             if (!match?.[1]) continue;
 
             return {
-              root: root.stdout,
+              root,
               remote,
               repository: match[1],
               localBranch: branch.stdout,
@@ -342,39 +329,19 @@ export class GitHub extends Context.Service<
             .flatMap((page) => page.jobs)
             .filter((job) => attention(job.conclusion));
 
-          let stderr = "";
-
-          const logs = yield* gh
-            .stream([
-              "run",
-              "view",
-              String(run.id),
-              "--repo",
-              `github.com/${target.repository}`,
-              "--attempt",
-              String(run.run_attempt),
-              "--log-failed",
-            ])
-            .pipe(
-              Stream.map((chunk) =>
-                Match.value(chunk).pipe(
-                  Match.tag("Stderr", (value) => {
-                    stderr += value.text;
-
-                    return "";
-                  }),
-                  Match.tag("Stdout", (value) => value.text),
-                  Match.exhaustive,
-                ),
+          const logs = yield* Workflow.logs({
+            repo: `github.com/${target.repository}`,
+            runId: run.id,
+            attempt: run.run_attempt,
+            failedOnly: true,
+          }).pipe(
+            Effect.map((stdout) => stdout.trim()),
+            Effect.catchTag("GhCommandError", (error) =>
+              Effect.succeed(
+                `Failed-step output unavailable: ${error.stderr.trim()}`,
               ),
-              Stream.mkString,
-              Effect.map((stdout) => stdout.trim()),
-              Effect.catchTag("GhCommandError", () =>
-                Effect.succeed(
-                  `Failed-step output unavailable: ${stderr.trim()}`,
-                ),
-              ),
-            );
+            ),
+          );
 
           return {
             jobs,

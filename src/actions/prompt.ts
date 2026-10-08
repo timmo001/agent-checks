@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { Effect, FileSystem, Path } from "effect";
+import { Effect, FileSystem, Path, Schema } from "effect";
 import { RuntimeConfig } from "../config";
-import { GitHub, attention, type Run, type Target } from "../services/github";
+import { ActionError } from "../errors";
+import {
+  GitHub,
+  attention,
+  type Run,
+  type Status,
+  type Target,
+} from "../services/github";
 import { plain } from "../text";
 
 const instruction =
@@ -9,15 +16,43 @@ const instruction =
 
 const outputLimit = 12_000;
 
-export const report = Effect.fn("Actions.report")(function* (
-  target: Target,
-  run: Run,
-  directory: string,
-) {
-  const github = yield* GitHub;
+const FailedRun = Schema.Struct({
+  id: Schema.Int,
+  attempt: Schema.Int,
+  workflow: Schema.String,
+  url: Schema.String,
+  jobs: Schema.Array(
+    Schema.Struct({
+      id: Schema.Int,
+      name: Schema.String,
+      conclusion: Schema.NullOr(Schema.String),
+      url: Schema.String,
+      failedSteps: Schema.Array(
+        Schema.Struct({
+          number: Schema.Int,
+          name: Schema.String,
+          conclusion: Schema.NullOr(Schema.String),
+        }),
+      ),
+    }),
+  ),
+  logs: Schema.NullOr(Schema.String),
+  logFile: Schema.NullOr(Schema.String),
+});
+
+export const CiFailures = Schema.Struct({
+  repository: Schema.String,
+  branch: Schema.String,
+  sha: Schema.String,
+  runs: Schema.Array(FailedRun),
+  prompt: Schema.String,
+});
+
+const report = Effect.fn("Prompt.report")(function* (target: Target, run: Run) {
+  const config = yield* RuntimeConfig;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const details = yield* github.details(target, run);
+  const details = yield* (yield* GitHub).details(target, run);
 
   const output = plain(
     [
@@ -38,6 +73,8 @@ export const report = Effect.fn("Actions.report")(function* (
     ].join("\n"),
   );
 
+  const directory = path.join(config.state, "logs");
+
   const file =
     output.length > outputLimit
       ? path.join(
@@ -52,7 +89,23 @@ export const report = Effect.fn("Actions.report")(function* (
   }
 
   return {
-    jobs: details.jobs,
+    id: run.id,
+    attempt: run.run_attempt,
+    workflow: run.name ?? run.display_title,
+    url: run.html_url,
+    jobs: details.jobs.map((job) => ({
+      id: job.id,
+      name: job.name,
+      conclusion: job.conclusion,
+      url: job.html_url,
+      failedSteps: (job.steps ?? [])
+        .filter((step) => attention(step.conclusion))
+        .map((step) => ({
+          number: step.number,
+          name: step.name,
+          conclusion: step.conclusion,
+        })),
+    })),
     logs: file ? null : output,
     logFile: file,
     text: plain(
@@ -66,34 +119,50 @@ export const report = Effect.fn("Actions.report")(function* (
   };
 });
 
-export function prompt(
+/**
+ * The failed runs on a target's pushed commit, or only `runId`, with the
+ * investigation prompt for an agent.
+ */
+export const ciFailures = Effect.fn("Prompt.ciFailures")(function* (
   target: Target,
-  sha: string,
-  reports: ReadonlyArray<{ readonly text: string }>,
+  status: Status,
+  runId?: number,
 ) {
-  return plain(
-    [
-      reports.length > 1
-        ? instruction.replace(
-            "this GitHub Actions failure",
-            "these GitHub Actions failures",
-          )
-        : instruction,
-      `Repository: ${target.repository}`,
-      `Branch: ${target.branch}`,
-      `Pushed commit: ${sha}`,
-      reports.map((value) => value.text).join("\n\n"),
-    ].join("\n"),
+  const runs = status.runs.filter(
+    (run) =>
+      attention(run.conclusion) && (runId === undefined || run.id === runId),
   );
-}
 
-export const handoff = Effect.fn("Actions.handoff")(function* (
-  target: Target,
-  run: Run,
-) {
-  const config = yield* RuntimeConfig;
+  if (runs.length === 0)
+    return yield* new ActionError({
+      message:
+        runId === undefined
+          ? "No failed workflow runs on the pushed branch"
+          : `Run ${runId} is not a current failure`,
+    });
 
-  return prompt(target, run.head_sha, [
-    yield* report(target, run, config.state),
-  ]);
+  const reports = yield* Effect.forEach(runs, (run) => report(target, run), {
+    concurrency: 3,
+  });
+
+  return {
+    repository: target.repository,
+    branch: target.branch,
+    sha: status.sha,
+    runs: reports.map(({ text: _text, ...run }) => run),
+    prompt: plain(
+      [
+        reports.length > 1
+          ? instruction.replace(
+              "this GitHub Actions failure",
+              "these GitHub Actions failures",
+            )
+          : instruction,
+        `Repository: ${target.repository}`,
+        `Branch: ${target.branch}`,
+        `Pushed commit: ${status.sha}`,
+        reports.map((value) => value.text).join("\n\n"),
+      ].join("\n"),
+    ),
+  };
 });
