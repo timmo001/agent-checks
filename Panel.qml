@@ -13,9 +13,9 @@ Panel {
   property var hostWidget: null
   property var service: null
 
-  // overview, ci or lint; "agent" picks a launcher for agentKind.
-  property string mode: "overview"
+  // "agent" picks a launcher for agentKind.
   property string view: "checks"
+  property var openSections: ({ ci: true, lint: true })
   property string cwd: ""
   property string paneId: ""
   property string expandedKey: ""
@@ -59,8 +59,13 @@ Panel {
 
   readonly property var ciSection: sectionState("ci")
   readonly property var lintSection: sectionState("lint")
-  readonly property var modeSection: mode === "lint" ? lintSection : ciSection
-  readonly property var panelRows: buildPanelRows()
+  readonly property var launcherRows: launchers.map(function(launcher) {
+    return { key: "launcher:" + launcher.id, action: "launcher", launcher: launcher.id, primaryText: launcher.label, icon: "󱚣" }
+  })
+  readonly property var sections: [sectionEntry("ci", "CI"), sectionEntry("lint", "Lint")]
+  readonly property var panelRows: view === "agent"
+    ? [backRow()].concat(launcherRows)
+    : sections.reduce(function(rows, section) { return rows.concat([section.toggle], section.rows) }, [])
 
   // Each section's status, message and the retry action its refresh button runs.
   function sectionState(kind) {
@@ -105,48 +110,43 @@ Panel {
     return { status: "loaded", message: "", retry: "" }
   }
 
-  function buildPanelRows() {
-    if (view === "agent")
-      return [backRow("Back")].concat(launchers.map(function(launcher) {
-        return { key: "launcher:" + launcher.id, action: "launcher", launcher: launcher.id, primaryText: launcher.label, icon: "󱚣" }
-      }))
-    if (mode === "overview")
-      return [
-        { key: "section:ci", action: "mode", target: "ci", primaryText: "CI", secondaryText: summaryText("ci"), icon: "\uF52E" },
-        { key: "section:lint", action: "mode", target: "lint", primaryText: "Lint", secondaryText: summaryText("lint"), icon: "\uF4B1" }
-      ]
-    var rows = [backRow("Back to overview")]
-    if (mode === "ci") {
-      rows = rows.concat(runs.map(function(run) {
-        return { key: "run:" + run.id, run: run, primaryText: run.name || run.display_title, secondaryText: runText(run) }
-      }))
-      if (ciTone === "failed") rows = rows.concat(actionRows("ci"))
-    } else {
-      rows = rows.concat(lintChecks.map(function(check) {
-        return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: checkText(check) }
-      }))
-      if (lintTone === "failed") rows = rows.concat(actionRows("lint"))
+  // A collapsible section: its heading's toggle row, then its rows while open.
+  function sectionEntry(kind, title) {
+    return {
+      kind: kind,
+      title: title,
+      toggle: { key: "toggle:" + kind, action: "toggle", kind: kind, primaryText: title },
+      rows: openSections[kind] === true ? sectionRows(kind) : []
     }
-    return rows
   }
 
-  function backRow(label) {
-    return { key: "action:back", action: "back", navigation: true, primaryText: label }
+  function sectionRows(kind) {
+    if (kind === "ci")
+      return runs.map(function(run) {
+        return { key: "run:" + run.id, run: run, primaryText: run.name || run.display_title, secondaryText: runText(run) }
+      }).concat(ciTone === "failed" ? actionRows("ci") : [])
+    return lintChecks.map(function(check) {
+      return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: checkText(check) }
+    }).concat(lintTone === "failed" ? actionRows("lint") : [])
   }
 
-  function actionRow(action, label, icon) {
-    return { key: "action:" + action, action: action, primaryText: label, icon: icon }
+  function backRow() {
+    return { key: "action:back", action: "back", navigation: true, primaryText: "Back" }
+  }
+
+  function actionRow(kind, action, label, icon) {
+    return { key: "action:" + kind + ":" + action, action: action, kind: kind, primaryText: label, icon: icon }
   }
 
   function actionRows(kind) {
     var rows = [
-      actionRow("paste", "Paste into " + (paneId || "the agent"), "󰆒"),
-      actionRow("copy", copiedKey === kind ? "Copied" : "Copy the prompt", "󰆏"),
-      actionRow("launch", "Fix in a new agent here", "󱚣")
+      actionRow(kind, "paste", "Paste into " + (paneId || "the agent"), "󰆒"),
+      actionRow(kind, "copy", copiedKey === kind ? "Copied" : "Copy the prompt", "󰆏"),
+      actionRow(kind, "launch", "Fix in a new agent here", "󱚣")
     ]
     if (kind === "ci") {
-      rows.push(actionRow("worktree", "Fix in a new agent in a worktree", "󰙅"))
-      rows.push(actionRow("browser", "Open the Actions page", "󰖟"))
+      rows.push(actionRow(kind, "worktree", "Fix in a new agent in a worktree", "󰙅"))
+      rows.push(actionRow(kind, "browser", "Open the Actions page", "󰖟"))
     }
     return rows
   }
@@ -163,6 +163,21 @@ Panel {
     if (tone === "failed" || tone === "error") return urgentColor
     if (tone === "running") return warningColor
     if (tone === "ok") return successColor
+    return mutedColor
+  }
+
+  function overallTone() {
+    var tones = ["failed", "running", "ok"]
+    for (var i = 0; i < tones.length; i++)
+      if (ciTone === tones[i] || lintTone === tones[i]) return tones[i]
+    return "none"
+  }
+
+  function stateColor(kind) {
+    var status = (kind === "ci" ? ciSection : lintSection).status
+    if (status === "error") return urgentColor
+    if (status === "stale" || status === "running") return warningColor
+    if (status === "loaded") return toneColor(kind === "ci" ? ciTone : lintTone)
     return mutedColor
   }
 
@@ -222,7 +237,7 @@ Panel {
   // Names the pushed commit the shown runs belong to, which is an older one
   // when the latest commit has no runs yet.
   function ciBadge() {
-    if (!ci || view !== "checks" || mode === "lint") return ""
+    if (!ci || view !== "checks") return ""
     if (ci.runs.length === 0 && ci.previous) {
       var behind = ci.previous.commitsBehind
       return "CI on " + shortSha(ci.previous.sha) + " (" + behind + " commit" + (behind === 1 ? "" : "s") + " older)"
@@ -297,7 +312,8 @@ Panel {
 
   function refresh() {
     refreshStatus()
-    if (mode !== "ci") runLint(false)
+    loadCiReport()
+    if (openSections.lint) runLint(false)
   }
 
   function runAction(args, closeOnSuccess) {
@@ -339,14 +355,11 @@ Panel {
   }
 
   function activateAction(entry) {
-    var kind = mode
-    if (entry.action === "back") {
-      if (view === "agent") showView("checks")
-      else setMode("overview")
-    } else if (entry.action === "mode") setMode(entry.target)
-    else if (entry.action === "paste") runAction(["paste", "--kind", kind].concat(paneArgs()), true)
-    else if (entry.action === "copy") copy(kind)
-    else if (entry.action === "launch") showAgentPicker(kind, false)
+    if (entry.action === "back") showView("checks")
+    else if (entry.action === "toggle") toggleSection(entry.kind)
+    else if (entry.action === "paste") runAction(["paste", "--kind", entry.kind].concat(paneArgs()), true)
+    else if (entry.action === "copy") copy(entry.kind)
+    else if (entry.action === "launch") showAgentPicker(entry.kind, false)
     else if (entry.action === "worktree") showAgentPicker("ci", true)
     else if (entry.action === "browser") runAction(["browser"], false)
     else if (entry.action === "launcher") launch(entry.launcher)
@@ -359,18 +372,13 @@ Panel {
     Qt.callLater(scrollCursorIntoView)
   }
 
-  function setMode(next) {
-    mode = next
-    expandedKey = ""
-    if (next === "ci") loadCiReport()
-    if (next === "lint" && !lint && !lintProcess.running) runLint(false)
-    showView("checks")
-  }
-
-  function cycleMode(direction) {
-    if (view !== "checks") return
-    var modes = ["overview", "ci", "lint"]
-    setMode(modes[(modes.indexOf(mode) + direction + modes.length) % modes.length])
+  function toggleSection(kind) {
+    var next = Object.assign({}, openSections)
+    next[kind] = !next[kind]
+    openSections = next
+    if (!next[kind]) return
+    if (kind === "ci") loadCiReport()
+    else if (!lint && !lintProcess.running) runLint(false)
   }
 
   function showView(next) {
@@ -380,7 +388,8 @@ Panel {
     panelFlick.contentY = 0
   }
 
-  // `request` is { mode, cwd, pane }; empty values fall back to the focused pane.
+  // `request` is { mode, cwd, pane }; mode ci or lint opens only that
+  // section. Empty values fall back to the focused pane.
   function open(request) {
     var nextCwd = request.cwd || (service ? service.repositoryPath : "")
     if (nextCwd !== cwd) {
@@ -393,19 +402,36 @@ Panel {
     statusError = ""
     ciReportError = ""
     lintError = ""
-    mode = request.mode || "overview"
+    var mode = request.mode || "overview"
+    openSections = { ci: mode !== "lint", lint: mode !== "ci" }
     expandedKey = ""
     showView("checks")
     refresh()
     controller.show()
-    Qt.callLater(function() { filterController.forceActiveFocus() })
+    Qt.callLater(function() {
+      if (mode !== "overview") filterController.cursorIndex = filterController.indexForKey("toggle:" + mode)
+      filterController.forceActiveFocus()
+    })
   }
   function close() { controller.hide() }
   function toggle() { if (opened) close(); else open({ mode: "overview" }) }
 
+  function itemForEntry(entry) {
+    if (!entry) return null
+    if (entry.navigation === true) return panelHeader
+    if (view === "agent") return launcherRepeater.itemAt(launcherRows.indexOf(entry))
+    for (var i = 0; i < sections.length; i++) {
+      var sectionItem = sectionRepeater.itemAt(i)
+      if (!sectionItem) continue
+      if (sections[i].toggle.key === entry.key) return sectionItem.heading
+      var index = sections[i].rows.findIndex(function(row) { return row.key === entry.key })
+      if (index >= 0) return sectionItem.rowAt(index)
+    }
+    return null
+  }
+
   function scrollCursorIntoView() {
-    var entry = filterController.selectedEntry()
-    var item = !entry ? null : (entry.navigation === true ? panelHeader : rowRepeater.itemAt(rowEntries.indexOf(entry)))
+    var item = itemForEntry(filterController.selectedEntry())
     if (!item) return
     var point = item.mapToItem(contentColumn, 0, 0)
     if (point.y < panelFlick.contentY) panelFlick.contentY = point.y
@@ -413,11 +439,9 @@ Panel {
       panelFlick.contentY = point.y + item.height - panelFlick.height
   }
 
-  readonly property var rowEntries: filterController.filteredModel.filter(function(entry) { return entry.navigation !== true })
-
   onReadyChanged: if (opened && ready) refresh()
-  onFailedRunsKeyChanged: if (opened && mode !== "lint") loadCiReport()
-  onCiToneChanged: if (opened && mode !== "lint") loadCiReport()
+  onFailedRunsKeyChanged: if (opened) loadCiReport()
+  onCiToneChanged: if (opened) loadCiReport()
 
   Connections {
     target: root.service
@@ -525,16 +549,14 @@ Panel {
       anchors.fill: parent
       model: root.panelRows
       bypassFilter: true
-      backOnEmptyFilter: root.view === "agent" || root.mode !== "overview"
+      backOnEmptyFilter: root.view === "agent"
       onActivateRequested: function(entry) { root.activateEntry(entry) }
       onBackRequested: root.activateAction({ action: "back" })
       onRevealRequested: Qt.callLater(root.scrollCursorIntoView)
       onCloseRequested: {
         if (root.view === "agent") root.showView("checks")
-        else if (root.mode !== "overview") root.setMode("overview")
         else root.close()
       }
-      onTabRequested: function(direction) { root.cycleMode(direction) }
       onRefreshRequested: root.refresh()
 
       PanelFlickable {
@@ -555,227 +577,252 @@ Panel {
 
           PanelHeader {
             id: panelHeader
-            backText: root.view === "agent" ? "Back" : (root.mode !== "overview" ? "Back to overview" : "")
+            backText: root.view === "agent" ? "Back" : ""
             backHasCursor: filterController.cursorIndex === filterController.indexForKey("action:back")
             onBackHovered: filterController.cursorIndex = filterController.indexForKey("action:back")
             onBackActivated: root.activateAction({ action: "back" })
-            title: root.view === "agent" ? "Fix in a new agent" : (root.mode === "ci" ? "CI" : (root.mode === "lint" ? "Lint" : "Agent Checks"))
+            title: root.view === "agent" ? "Fix in a new agent" : "Agent Checks"
             meta: root.heroMeta()
             detail: root.ciBadge()
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
             iconComponent: Component {
               Text {
-                text: root.mode === "lint" ? "\uF4B1" : "\uF52E"
-                color: root.toneColor(root.mode === "lint" ? root.lintTone : root.ciTone)
+                text: "\uF52E"
+                color: root.toneColor(root.overallTone())
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.display
               }
             }
           }
 
-          ButtonGroup {
-            visible: root.view === "checks"
-            focusable: false
-            options: [
-              { value: "overview", label: "Overview" },
-              { value: "ci", label: "CI" },
-              { value: "lint", label: "Lint" }
-            ]
-            value: root.mode
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
-            fontSize: Style.font.caption
-            onChanged: function(value) { root.setMode(value) }
-          }
-
-          SectionHeading {
-            id: sectionHeading
-            visible: root.view === "checks" && root.mode !== "overview"
-            title: root.mode === "ci" ? "Workflow runs" : "Checks"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
-            refreshable: true
-            refreshing: statusProcess.running || lintProcess.running || ciProcess.running
-            // The section's state sits in the heading; the refresh button retries whatever it needs.
-            trailingControl: root.modeSection.status !== "loaded" ? headingState : null
-            onRefreshRequested: root.retry(root.modeSection.retry || root.mode)
-          }
-
-          Component {
-            id: headingState
-
-            Text {
-              readonly property string status: root.modeSection.status
-              width: Math.min(implicitWidth, sectionHeading.width * 0.6)
-              text: root.stateIcon(status) + root.modeSection.message
-              textFormat: Text.PlainText
-              wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-              maximumLineCount: 2
-              elide: Text.ElideRight
-              horizontalAlignment: Text.AlignRight
-              color: status === "error" ? root.urgentColor
-                : (status === "stale" || status === "running" ? root.warningColor : Qt.darker(root.contentForeground, 1.4))
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-            }
-          }
-
           Column {
+            visible: root.view === "agent"
             width: parent.width
             spacing: Style.space(2)
 
             Repeater {
-              id: rowRepeater
-              model: root.rowEntries
+              id: launcherRepeater
+              model: root.view === "agent" ? root.launcherRows : []
+              delegate: rowDelegate
+            }
+          }
 
-              CursorSurface {
-                id: rowSurface
-                required property var modelData
-                readonly property bool expanded: root.expandedKey === modelData.key
-                readonly property var report: modelData.run ? root.reportFor(modelData.run) : null
-                readonly property string tone: modelData.run ? root.runTone(modelData.run)
-                  : (modelData.check ? root.checkTone(modelData.check)
-                    : (modelData.key === "section:ci" ? root.ciTone : (modelData.key === "section:lint" ? root.lintTone : "")))
-                width: contentColumn.width
-                implicitHeight: rowColumn.implicitHeight + Style.space(12)
-                hasCursor: filterController.cursorIndex === filterController.indexForKey(modelData.key)
+          Repeater {
+            id: sectionRepeater
+            model: root.view === "checks" ? root.sections : []
+
+            Column {
+              id: sectionColumn
+              required property var modelData
+              readonly property alias heading: sectionHeading
+              readonly property bool sectionOpen: root.openSections[modelData.kind] === true
+              readonly property var info: modelData.kind === "ci" ? root.ciSection : root.lintSection
+              width: contentColumn.width
+              spacing: Style.space(4)
+
+              function rowAt(index) {
+                return rowRepeater.itemAt(index)
+              }
+
+              SectionHeading {
+                id: sectionHeading
+                width: parent.width
+                title: sectionColumn.modelData.title
                 foreground: root.contentForeground
-                accent: tone ? root.toneColor(tone) : root.contentForeground
+                fontFamily: root.contentFontFamily
+                collapsible: true
+                expanded: sectionColumn.sectionOpen
+                toggleHasCursor: filterController.cursorIndex === filterController.indexForKey(sectionColumn.modelData.toggle.key)
+                onToggleHovered: filterController.cursorIndex = filterController.indexForKey(sectionColumn.modelData.toggle.key)
+                onToggleRequested: root.toggleSection(sectionColumn.modelData.kind)
+                refreshable: true
+                refreshing: statusProcess.running
+                  || (sectionColumn.modelData.kind === "ci" ? ciProcess.running : lintProcess.running)
+                // The section's state sits in the heading; the refresh button retries whatever it needs.
+                trailingControl: headingState
+                onRefreshRequested: root.retry(sectionColumn.info.retry || sectionColumn.modelData.kind)
 
-                MouseArea {
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
-                  onEntered: filterController.cursorIndex = filterController.indexForKey(rowSurface.modelData.key)
-                  onClicked: root.activateEntry(rowSurface.modelData)
+                Component {
+                  id: headingState
+
+                  Text {
+                    width: Math.min(implicitWidth, sectionHeading.width * 0.6)
+                    text: root.stateIcon(sectionColumn.info.status) + root.summaryText(sectionColumn.modelData.kind)
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignRight
+                    color: root.stateColor(sectionColumn.modelData.kind)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                  }
                 }
+              }
 
-                Column {
-                  id: rowColumn
-                  anchors.left: parent.left
-                  anchors.right: parent.right
-                  anchors.verticalCenter: parent.verticalCenter
-                  anchors.leftMargin: Style.space(8)
-                  anchors.rightMargin: Style.space(8)
-                  spacing: Style.space(6)
+              Column {
+                visible: sectionColumn.sectionOpen
+                width: parent.width
+                spacing: Style.space(2)
 
-                  Item {
-                    width: parent.width
-                    implicitHeight: Math.max(textColumn.implicitHeight, rowActions.implicitHeight)
+                Repeater {
+                  id: rowRepeater
+                  model: sectionColumn.modelData.rows
+                  delegate: rowDelegate
+                }
+              }
+            }
+          }
 
-                    Text {
-                      id: rowIcon
-                      anchors.left: parent.left
-                      anchors.verticalCenter: parent.verticalCenter
-                      width: Style.space(22)
-                      text: rowSurface.modelData.icon || root.toneIcon(rowSurface.tone)
-                      color: rowSurface.tone ? root.toneColor(rowSurface.tone) : root.contentForeground
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.icon
-                      horizontalAlignment: Text.AlignHCenter
-                    }
+          Component {
+            id: rowDelegate
 
-                    Column {
-                      id: textColumn
-                      anchors.left: rowIcon.right
-                      anchors.leftMargin: Style.space(10)
-                      anchors.right: rowActions.left
-                      anchors.rightMargin: Style.space(8)
-                      anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.space(2)
+            CursorSurface {
+              id: rowSurface
+              required property var modelData
+              readonly property bool expanded: root.expandedKey === modelData.key
+              readonly property var report: modelData.run ? root.reportFor(modelData.run) : null
+              readonly property string tone: modelData.run ? root.runTone(modelData.run)
+                : (modelData.check ? root.checkTone(modelData.check) : "")
+              width: contentColumn.width
+              implicitHeight: rowColumn.implicitHeight + Style.space(12)
+              hasCursor: filterController.cursorIndex === filterController.indexForKey(modelData.key)
+              foreground: root.contentForeground
+              accent: tone ? root.toneColor(tone) : root.contentForeground
 
-                      Text {
-                        width: parent.width
-                        text: rowSurface.modelData.primaryText
-                        textFormat: Text.PlainText
-                        color: root.contentForeground
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.body
-                        font.bold: !rowSurface.modelData.action || rowSurface.modelData.action === "mode"
-                        elide: Text.ElideRight
-                      }
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: filterController.cursorIndex = filterController.indexForKey(rowSurface.modelData.key)
+                onClicked: root.activateEntry(rowSurface.modelData)
+              }
 
-                      Text {
-                        width: parent.width
-                        visible: text !== ""
-                        text: rowSurface.modelData.secondaryText || ""
-                        textFormat: Text.PlainText
-                        color: root.mutedColor
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.caption
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                        maximumLineCount: 3
-                        elide: Text.ElideRight
-                      }
-                    }
+              Column {
+                id: rowColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.space(8)
+                anchors.rightMargin: Style.space(8)
+                spacing: Style.space(6)
 
-                    Row {
-                      id: rowActions
-                      anchors.right: parent.right
-                      anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.space(4)
+                Item {
+                  width: parent.width
+                  implicitHeight: Math.max(textColumn.implicitHeight, rowActions.implicitHeight)
 
-                      PanelActionButton {
-                        visible: !!rowSurface.modelData.run
-                        enabled: !actionProcess.running
-                        iconText: "󰖟"
-                        tooltipText: "Open in the browser"
-                        foreground: root.contentForeground
-                        fontFamily: root.contentFontFamily
-                        onClicked: root.runAction(["browser", "--run", String(rowSurface.modelData.run.id)], false)
-                      }
-
-                      PanelActionButton {
-                        visible: !!rowSurface.modelData.run && rowSurface.tone === "failed"
-                        enabled: rowSurface.report !== null
-                        iconText: "󱚣"
-                        tooltipText: "Fix this run in a new agent"
-                        foreground: root.contentForeground
-                        fontFamily: root.contentFontFamily
-                        onClicked: root.showAgentPicker("ci", false, rowSurface.modelData.run.id)
-                      }
-                    }
+                  Text {
+                    id: rowIcon
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(22)
+                    text: rowSurface.modelData.icon || root.toneIcon(rowSurface.tone)
+                    color: rowSurface.tone ? root.toneColor(rowSurface.tone) : root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.icon
+                    horizontalAlignment: Text.AlignHCenter
                   }
 
                   Column {
-                    visible: rowSurface.expanded
-                    width: parent.width
-                    leftPadding: Style.space(32)
-                    spacing: Style.space(4)
+                    id: textColumn
+                    anchors.left: rowIcon.right
+                    anchors.leftMargin: Style.space(10)
+                    anchors.right: rowActions.left
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
 
                     Text {
-                      visible: !!rowSurface.modelData.run && rowSurface.tone !== "failed"
-                      text: "Only failed runs have logs here"
+                      width: parent.width
+                      text: rowSurface.modelData.primaryText
+                      textFormat: Text.PlainText
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: !rowSurface.modelData.action
+                      elide: Text.ElideRight
+                    }
+
+                    Text {
+                      width: parent.width
+                      visible: text !== ""
+                      text: rowSurface.modelData.secondaryText || ""
+                      textFormat: Text.PlainText
                       color: root.mutedColor
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.caption
+                      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                      maximumLineCount: 3
+                      elide: Text.ElideRight
                     }
+                  }
 
-                    Repeater {
-                      model: rowSurface.expanded && rowSurface.report ? rowSurface.report.jobs : []
+                  Row {
+                    id: rowActions
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(4)
 
-                      Text {
-                        required property var modelData
-                        width: parent.width - Style.space(32)
-                        text: modelData.name + (modelData.failedSteps.length
-                          ? " · " + modelData.failedSteps.map(function(step) { return step.name }).join(", ") : "")
-                        textFormat: Text.PlainText
-                        color: root.urgentColor
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.caption
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                      }
-                    }
-
-                    OutputView {
-                      visible: rowSurface.expanded && text !== ""
-                      width: parent.width - Style.space(32)
-                      text: rowSurface.modelData.check
-                        ? (rowSurface.modelData.check.status === "timedOut" ? "Timed out" : rowSurface.modelData.check.output)
-                        : (rowSurface.report ? (rowSurface.report.logs || "Saved to " + rowSurface.report.logFile) : "")
+                    PanelActionButton {
+                      visible: !!rowSurface.modelData.run
+                      enabled: !actionProcess.running
+                      iconText: "󰖟"
+                      tooltipText: "Open in the browser"
                       foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.runAction(["browser", "--run", String(rowSurface.modelData.run.id)], false)
                     }
+
+                    PanelActionButton {
+                      visible: !!rowSurface.modelData.run && rowSurface.tone === "failed"
+                      enabled: rowSurface.report !== null
+                      iconText: "󱚣"
+                      tooltipText: "Fix this run in a new agent"
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.showAgentPicker("ci", false, rowSurface.modelData.run.id)
+                    }
+                  }
+                }
+
+                Column {
+                  visible: rowSurface.expanded
+                  width: parent.width
+                  leftPadding: Style.space(32)
+                  spacing: Style.space(4)
+
+                  Text {
+                    visible: !!rowSurface.modelData.run && rowSurface.tone !== "failed"
+                    text: "Only failed runs have logs here"
+                    color: root.mutedColor
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  Repeater {
+                    model: rowSurface.expanded && rowSurface.report ? rowSurface.report.jobs : []
+
+                    Text {
+                      required property var modelData
+                      width: parent.width - Style.space(32)
+                      text: modelData.name + (modelData.failedSteps.length
+                        ? " · " + modelData.failedSteps.map(function(step) { return step.name }).join(", ") : "")
+                      textFormat: Text.PlainText
+                      color: root.urgentColor
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    }
+                  }
+
+                  OutputView {
+                    visible: rowSurface.expanded && text !== ""
+                    width: parent.width - Style.space(32)
+                    text: rowSurface.modelData.check
+                      ? (rowSurface.modelData.check.status === "timedOut" ? "Timed out" : rowSurface.modelData.check.output)
+                      : (rowSurface.report ? (rowSurface.report.logs || "Saved to " + rowSurface.report.logFile) : "")
+                    foreground: root.contentForeground
                   }
                 }
               }

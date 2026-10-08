@@ -106,9 +106,9 @@ command = "timmo.agent-checks.paste-lint"
 
 ## Panel
 
-The panel has three modes, switched with Tab: an overview, CI and lint. Each
-section shows whether it is loading, running, empty, stale or failed, with a
-retry where one helps.
+The panel shows CI and lint together as collapsible sections. Each section
+heading shows whether it is loading, running, empty, stale or failed, with a
+retry where one helps. Opening the panel on CI or lint opens only that section.
 
 - **CI** lists the workflow runs. Failed runs expand to their failed jobs, steps
   and logs. From there you can paste or copy the prompt, open the Actions page,
