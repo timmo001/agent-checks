@@ -68,7 +68,7 @@ Add the tokens to Herdr's sidebar and bind the actions:
 rows = [
   ["state_icon", "workspace"],
   ["branch", "git_status",
-    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E ⚠", fg = "#f9e2af" }, { equals = "\uF52E …", fg = "#89b4fa" }, { equals = "\uF52E ↻", fg = "#f9e2af" }, { equals = "\uF52E ✓", fg = "#a6e3a1" }] },
+    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E  ⚠", fg = "#f9e2af" }, { equals = "\uF52E  …", fg = "#89b4fa" }, { equals = "\uF52E  ↻", fg = "#f9e2af" }, { equals = "\uF52E  ✓", fg = "#a6e3a1" }] },
     { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "󰃢 ⚠", fg = "#f9e2af" }, { equals = "󰃢 ↻", fg = "#f9e2af" }, { equals = "󰃢 ✓", fg = "#a6e3a1" }] }],
 ]
 
@@ -157,7 +157,7 @@ Create `config.json` in the directory printed by
   "showIdle": false,
   "showPrevious": true,
   "indicatorTemplates": {
-    "failure": "\uF52E !{count}",
+    "failure": "\uF52E  !{count}",
     "previous": "{status} ↶{count}"
   },
   "lint": {
