@@ -31,6 +31,8 @@ Panel {
   property bool agentWorktree: false
   property int agentRun: -1
   property string actionError: ""
+  // The row whose action is running or failed, which shows its status.
+  property string actionKey: ""
   property string copiedKey: ""
 
   readonly property var barIdentity: hostWidget || root
@@ -322,9 +324,10 @@ Panel {
     runLint(false)
   }
 
-  function runAction(args, closeOnSuccess) {
+  function runAction(args, closeOnSuccess, key) {
     if (actionProcess.running) return
     actionError = ""
+    actionKey = key
     actionProcess.closeOnSuccess = closeOnSuccess
     actionProcess.command = cli(args)
     actionProcess.running = true
@@ -353,21 +356,21 @@ Panel {
     showView("agent")
   }
 
-  function launch(launcherId) {
-    var args = ["launch", "--kind", agentKind, "--launcher", launcherId].concat(paneArgs())
+  function launch(entry) {
+    var args = ["launch", "--kind", agentKind, "--launcher", entry.launcher].concat(paneArgs())
     if (agentWorktree) args.push("--worktree")
     if (agentRun >= 0) args = args.concat(["--run", String(agentRun)])
-    runAction(args, true)
+    runAction(args, true, entry.key)
   }
 
   function activateAction(entry) {
     if (entry.action === "back") showView("checks")
-    else if (entry.action === "paste") runAction(["paste", "--kind", entry.kind].concat(paneArgs()), true)
+    else if (entry.action === "paste") runAction(["paste", "--kind", entry.kind].concat(paneArgs()), true, entry.key)
     else if (entry.action === "copy") copy(entry.kind)
     else if (entry.action === "launch") showAgentPicker(entry.kind, false)
     else if (entry.action === "worktree") showAgentPicker("ci", true)
-    else if (entry.action === "browser") runAction(["browser"], false)
-    else if (entry.action === "launcher") launch(entry.launcher)
+    else if (entry.action === "browser") runAction(["browser"], false, entry.key)
+    else if (entry.action === "launcher") launch(entry)
   }
 
   function activateEntry(entry) {
@@ -772,6 +775,17 @@ Panel {
                       maximumLineCount: 3
                       elide: Text.ElideRight
                     }
+
+                    Text {
+                      width: parent.width
+                      visible: root.actionKey === rowSurface.modelData.key && (actionProcess.running || root.actionError !== "")
+                      text: actionProcess.running ? "Working…" : root.actionError
+                      textFormat: Text.PlainText
+                      color: actionProcess.running ? root.mutedColor : root.urgentColor
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    }
                   }
 
                   Row {
@@ -797,7 +811,7 @@ Panel {
                       tooltipText: "Open in the browser"
                       foreground: root.contentForeground
                       fontFamily: root.contentFontFamily
-                      onClicked: root.runAction(["browser", "--run", String(rowSurface.modelData.run.id)], false)
+                      onClicked: root.runAction(["browser", "--run", String(rowSurface.modelData.run.id)], false, rowSurface.modelData.key)
                     }
 
                     PanelActionButton {
@@ -862,17 +876,6 @@ Panel {
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
             color: root.launchersError ? root.urgentColor : root.mutedColor
-            font.family: root.contentFontFamily
-            font.pixelSize: Style.font.caption
-          }
-
-          Text {
-            visible: actionProcess.running || root.actionError !== ""
-            width: parent.width
-            text: actionProcess.running ? "Working…" : root.actionError
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            color: actionProcess.running ? root.mutedColor : root.urgentColor
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
           }
