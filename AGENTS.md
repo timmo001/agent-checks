@@ -9,7 +9,7 @@
   subprocesses, and `src/actions/` owns prompts and agent handling.
 - `herdr-plugin.toml` is the Herdr plugin; `manifest.json` and the root QML
   files are the Omarchy shell plugin.
-- `FilterablePanel`, `LoadState`, `OutputView`, `PanelFlickable`, `PanelHeader`
+- `FilterablePanel`, `OutputView`, `PanelFlickable`, `PanelHeader`
   and `SectionHeading` are copies of the shared dotfiles panel components. Change
   them in dotfiles and run `dot omarchy-plugin sync-components`; don't edit the
   copies here.

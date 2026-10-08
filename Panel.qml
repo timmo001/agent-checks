@@ -62,7 +62,7 @@ Panel {
   readonly property var modeSection: mode === "lint" ? lintSection : ciSection
   readonly property var panelRows: buildPanelRows()
 
-  // Each section's LoadState status, message and retry action.
+  // Each section's status, message and the retry action its refresh button runs.
   function sectionState(kind) {
     if (!service) return { status: "error", message: "The Agent Checks service is not loaded", retry: "" }
     if (!service.ready)
@@ -172,6 +172,14 @@ Panel {
     if (tone === "running") return "󰦖"
     if (tone === "ok") return "󰗠"
     return "󰋙"
+  }
+
+  function stateIcon(status) {
+    if (status === "error") return "󰅚 "
+    if (status === "stale") return "󰀪 "
+    if (status === "running") return "󰦖 "
+    if (status === "loading") return "󰔟 "
+    return ""
   }
 
   function runTone(run) {
@@ -585,36 +593,28 @@ Panel {
             fontFamily: root.contentFontFamily
             refreshable: true
             refreshing: statusProcess.running || lintProcess.running || ciProcess.running
-            // Empty states are a summary, not a problem, so they sit in the heading.
-            trailingControl: root.modeSection.status === "empty" ? headingSummary : null
-            onRefreshRequested: root.mode === "lint" ? root.runLint(true) : root.retry("ci")
+            // The section's state sits in the heading; the refresh button retries whatever it needs.
+            trailingControl: root.modeSection.status !== "loaded" ? headingState : null
+            onRefreshRequested: root.retry(root.modeSection.retry || root.mode)
           }
 
           Component {
-            id: headingSummary
+            id: headingState
 
             Text {
+              readonly property string status: root.modeSection.status
               width: Math.min(implicitWidth, sectionHeading.width * 0.6)
-              text: root.modeSection.message
+              text: root.stateIcon(status) + root.modeSection.message
               textFormat: Text.PlainText
+              wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+              maximumLineCount: 2
               elide: Text.ElideRight
-              color: Qt.darker(root.contentForeground, 1.4)
+              horizontalAlignment: Text.AlignRight
+              color: status === "error" ? root.urgentColor
+                : (status === "stale" || status === "running" ? root.warningColor : Qt.darker(root.contentForeground, 1.4))
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
             }
-          }
-
-          LoadState {
-            visible: root.view === "checks" && root.mode !== "overview" && status !== "loaded" && status !== "empty"
-            status: root.modeSection.status
-            message: root.modeSection.message
-            retryable: root.modeSection.retry !== ""
-            retryText: root.modeSection.retry === "watcher" ? "Start the watcher" : (root.modeSection.retry === "lint" ? "Run lint" : "Retry")
-            foreground: root.contentForeground
-            urgentColor: root.urgentColor
-            warningColor: root.warningColor
-            fontFamily: root.contentFontFamily
-            onRetryRequested: root.retry(root.modeSection.retry)
           }
 
           Column {

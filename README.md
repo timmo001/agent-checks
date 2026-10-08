@@ -55,7 +55,7 @@ watcher after source changes; a running watcher restarts itself when its bundle
 or configuration changes.
 
 For the Omarchy side, deploy the repository as the `timmo.agent-checks` plugin
-in `~/.config/omarchy/plugins/`. `FilterablePanel`, `LoadState`, `OutputView`,
+in `~/.config/omarchy/plugins/`. `FilterablePanel`, `OutputView`,
 `PanelFlickable`, `PanelHeader` and `SectionHeading` are copies of the shared
 dotfiles panel components. Change them in dotfiles and run
 `dot omarchy-plugin sync-components`, rather than editing them here.
