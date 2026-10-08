@@ -58,6 +58,7 @@ Panel {
 
   readonly property var ciSection: sectionState("ci")
   readonly property var lintSection: sectionState("lint")
+  readonly property var modeSection: mode === "lint" ? lintSection : ciSection
   readonly property var panelRows: buildPanelRows()
 
   // Each section's LoadState status, message and retry action.
@@ -97,7 +98,7 @@ Panel {
     var result = lint.result
     if (!result) return { status: "empty", message: "No lint result yet", retry: "lint" }
     if (result.status === "error") return { status: "error", message: "Lint could not run: " + (result.error || "unknown error"), retry: "lint" }
-    if (result.status === "unconfigured") return { status: "empty", message: "No agent lint checks are configured for this repository", retry: "" }
+    if (result.status === "unconfigured") return { status: "empty", message: "No lint checks configured", retry: "" }
     if (result.status === "clean")
       return { status: "empty", message: "Clean · " + result.files + " changed file" + (result.files === 1 ? "" : "s") + " · " + relative(result.finished), retry: "lint" }
     return { status: "loaded", message: "", retry: "" }
@@ -124,7 +125,6 @@ Panel {
         return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: check.command }
       }))
       if (lintTone === "failed") rows = rows.concat(actionRows("lint"))
-      if (lint && !lint.running) rows.push(actionRow("rerun", "Run lint again", "󰑐"))
     }
     return rows
   }
@@ -196,6 +196,14 @@ Panel {
   }
 
   function shortSha(sha) { return String(sha || "").slice(0, 7) }
+
+  // Names the pushed commit the shown runs belong to, which is an older one
+  // when the latest commit has no runs yet.
+  function ciBadge() {
+    if (!ci || view !== "checks" || mode === "lint") return ""
+    if (ci.runs.length === 0 && ci.previous) return "CI on " + shortSha(ci.previous.sha) + " (older)"
+    return "CI on " + shortSha(ci.sha)
+  }
 
   function span(milliseconds) {
     var seconds = Math.max(0, Math.round(milliseconds / 1000))
@@ -316,7 +324,6 @@ Panel {
     else if (entry.action === "launch") showAgentPicker(kind, false)
     else if (entry.action === "worktree") showAgentPicker("ci", true)
     else if (entry.action === "browser") runAction(["browser"], false)
-    else if (entry.action === "rerun") runLint(true)
     else if (entry.action === "launcher") launch(entry.launcher)
   }
 
@@ -529,7 +536,7 @@ Panel {
             onBackActivated: root.activateAction({ action: "back" })
             title: root.view === "agent" ? "Fix in a new agent" : (root.mode === "ci" ? "CI" : (root.mode === "lint" ? "Lint" : "Agent Checks"))
             meta: root.heroMeta()
-            detail: root.ci ? root.shortSha(root.ci.sha) : ""
+            detail: root.ciBadge()
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
             iconComponent: Component {
@@ -558,27 +565,43 @@ Panel {
           }
 
           SectionHeading {
+            id: sectionHeading
             visible: root.view === "checks" && root.mode !== "overview"
             title: root.mode === "ci" ? "Workflow runs" : "Checks"
             foreground: root.contentForeground
             fontFamily: root.contentFontFamily
             refreshable: true
             refreshing: statusProcess.running || lintProcess.running || ciProcess.running
+            // Empty states are a summary, not a problem, so they sit in the heading.
+            trailingControl: root.modeSection.status === "empty" ? headingSummary : null
             onRefreshRequested: root.mode === "lint" ? root.runLint(true) : root.retry("ci")
           }
 
+          Component {
+            id: headingSummary
+
+            Text {
+              width: Math.min(implicitWidth, sectionHeading.width * 0.6)
+              text: root.modeSection.message
+              textFormat: Text.PlainText
+              elide: Text.ElideRight
+              color: Qt.darker(root.contentForeground, 1.4)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
           LoadState {
-            visible: root.view === "checks" && root.mode !== "overview" && status !== "loaded"
-            readonly property var section: root.mode === "lint" ? root.lintSection : root.ciSection
-            status: section.status
-            message: section.message
-            retryable: section.retry !== ""
-            retryText: section.retry === "watcher" ? "Start the watcher" : (section.retry === "lint" ? "Run lint" : "Retry")
+            visible: root.view === "checks" && root.mode !== "overview" && status !== "loaded" && status !== "empty"
+            status: root.modeSection.status
+            message: root.modeSection.message
+            retryable: root.modeSection.retry !== ""
+            retryText: root.modeSection.retry === "watcher" ? "Start the watcher" : (root.modeSection.retry === "lint" ? "Run lint" : "Retry")
             foreground: root.contentForeground
             urgentColor: root.urgentColor
             warningColor: root.warningColor
             fontFamily: root.contentFontFamily
-            onRetryRequested: root.retry(section.retry)
+            onRetryRequested: root.retry(root.modeSection.retry)
           }
 
           Column {
