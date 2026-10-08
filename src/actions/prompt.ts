@@ -12,7 +12,7 @@ import {
 import { plain } from "../text";
 
 const instruction =
-  "Investigate and fix this GitHub Actions failure in this checkout. Follow its AGENTS.md. Leave changes uncommitted and unpushed.";
+  "Investigate and fix this GitHub Actions failure in this checkout. Follow its AGENTS.md. Leave changes uncommitted and unpushed. Once a pushed fix makes these workflows pass, mark their failed-run GitHub notifications for this repository done.";
 
 const outputLimit = 12_000;
 
