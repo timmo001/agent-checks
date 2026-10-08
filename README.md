@@ -18,13 +18,14 @@ Nothing is published. mise and Bun build and run everything from the checkout.
 The watcher follows the current branch of every open GitHub-backed workspace and
 lints each workspace's checkout. It publishes two tokens for Herdr's sidebar:
 
-- `$timmo_agent_checks_ci`: `󰊤 !2` means two runs need attention, `󰊤 ↻` that
-  runs are in progress, `󰊤 …` that the first result is loading and `󰊤 ⚠` that
-  GitHub or the repository could not be read. `󰊤 ✓` and `󰊤 ○` (no runs) need
-  `showSuccess` and `showIdle`.
-- `$timmo_agent_checks_lint`: `󰁨 !2` means two checks failed, `󰁨 ↻` that
-  lint is running, `󰁨 ⏱` that it timed out, `󰁨 ⚠` that it could not run
-  and `󰁨 ✓` that the working tree is clean.
+- `$timmo_agent_checks_ci` starts with the Nerd Font GitHub Actions icon
+  (`U+EAFF`). `!2` after it means two runs need attention, `↻` that runs are in
+  progress, `…` that the first result is loading and `⚠` that GitHub or the
+  repository could not be read. `✓` and `○` (no runs) need `showSuccess` and
+  `showIdle`.
+- `$timmo_agent_checks_lint`: `󰃢 !2` means two checks failed, `󰃢 ↻` that
+  lint is running, `󰃢 ⏱` that it timed out, `󰃢 ⚠` that it could not run
+  and `󰃢 ✓` that the working tree is clean.
 
 Failed, timed-out, startup-failed and action-required runs need attention;
 cancelled, neutral and skipped runs do not. Reruns replace the previous attempt.
@@ -67,8 +68,8 @@ Add the tokens to Herdr's sidebar and bind the actions:
 rows = [
   ["state_icon", "workspace"],
   ["branch", "git_status",
-    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "󰊤 ⚠", fg = "#f9e2af" }, { equals = "󰊤 …", fg = "#89b4fa" }, { equals = "󰊤 ↻", fg = "#f9e2af" }, { equals = "󰊤 ✓", fg = "#a6e3a1" }] },
-    { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "󰁨 ⚠", fg = "#f9e2af" }, { equals = "󰁨 ↻", fg = "#f9e2af" }, { equals = "󰁨 ✓", fg = "#a6e3a1" }] }],
+    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uEAFF ⚠", fg = "#f9e2af" }, { equals = "\uEAFF …", fg = "#89b4fa" }, { equals = "\uEAFF ↻", fg = "#f9e2af" }, { equals = "\uEAFF ✓", fg = "#a6e3a1" }] },
+    { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "󰃢 ⚠", fg = "#f9e2af" }, { equals = "󰃢 ↻", fg = "#f9e2af" }, { equals = "󰃢 ✓", fg = "#a6e3a1" }] }],
 ]
 
 [[keys.command]]
@@ -156,14 +157,14 @@ Create `config.json` in the directory printed by
   "showIdle": false,
   "showPrevious": true,
   "indicatorTemplates": {
-    "failure": "󰊤 !{count}",
+    "failure": "\uEAFF !{count}",
     "previous": "{status} ↶{count}"
   },
   "lint": {
     "enabled": true,
     "command": ["dot", "agent-lint", "--json"],
     "timeoutSeconds": 600,
-    "templates": { "failure": "󰁨 !{count}" }
+    "templates": { "failure": "󰃢 !{count}" }
   },
   "launchers": [{ "id": "pi", "label": "Pi", "argv": ["pi"], "agent": "pi" }]
 }

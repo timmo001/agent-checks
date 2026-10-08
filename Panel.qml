@@ -112,8 +112,8 @@ Panel {
       }))
     if (mode === "overview")
       return [
-        { key: "section:ci", action: "mode", target: "ci", primaryText: "CI", secondaryText: summaryText("ci"), icon: "󰊤" },
-        { key: "section:lint", action: "mode", target: "lint", primaryText: "Lint", secondaryText: summaryText("lint"), icon: "󰁨" }
+        { key: "section:ci", action: "mode", target: "ci", primaryText: "CI", secondaryText: summaryText("ci"), icon: "\uEAFF" },
+        { key: "section:lint", action: "mode", target: "lint", primaryText: "Lint", secondaryText: summaryText("lint"), icon: "󰃢" }
       ]
     var rows = [backRow("Back to overview")]
     if (mode === "ci") {
@@ -222,7 +222,10 @@ Panel {
   // when the latest commit has no runs yet.
   function ciBadge() {
     if (!ci || view !== "checks" || mode === "lint") return ""
-    if (ci.runs.length === 0 && ci.previous) return "CI on " + shortSha(ci.previous.sha) + " (older)"
+    if (ci.runs.length === 0 && ci.previous) {
+      var behind = ci.previous.commitsBehind
+      return "CI on " + shortSha(ci.previous.sha) + " (" + behind + " commit" + (behind === 1 ? "" : "s") + " older)"
+    }
     return "CI on " + shortSha(ci.sha)
   }
 
@@ -562,7 +565,7 @@ Panel {
             fontFamily: root.contentFontFamily
             iconComponent: Component {
               Text {
-                text: root.mode === "lint" ? "󰁨" : "󰊤"
+                text: root.mode === "lint" ? "󰃢" : "\uEAFF"
                 color: root.toneColor(root.mode === "lint" ? root.lintTone : root.ciTone)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.display
