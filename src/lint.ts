@@ -146,13 +146,44 @@ export function lintPrompt(result: LintResult) {
   );
 }
 
-const runCommand = Effect.fn("Lint.runCommand")(function* (root: string) {
+const resultStatus = (
+  configured: boolean,
+  checks: readonly LintCheck[],
+): LintResult["status"] => {
+  const failed = failing(checks);
+
+  return !configured
+    ? "unconfigured"
+    : failed.some((value) => value.status === "failed")
+      ? "failed"
+      : failed.length
+        ? "timedOut"
+        : "clean";
+};
+
+/** Which checks to run: every file instead of changed ones, and named checks only. */
+export interface LintScope {
+  readonly all?: boolean;
+  readonly only?: readonly string[];
+}
+
+const runCommand = Effect.fn("Lint.runCommand")(function* (
+  root: string,
+  scope: LintScope,
+) {
   const config = yield* RuntimeConfig;
   const [command, ...args] = config.lint.command;
 
-  const output = yield* (yield* Process).run(command, args, root, {
-    timeoutMs: config.lint.timeoutMs,
-  });
+  const output = yield* (yield* Process).run(
+    command,
+    [
+      ...args,
+      ...(scope.all ? ["--all"] : []),
+      ...(scope.only ?? []).flatMap((name) => ["--only", name]),
+    ],
+    root,
+    { timeoutMs: config.lint.timeoutMs },
+  );
 
   // agent-lint exits 1 when a check fails, with the report still on stdout.
   const report = yield* Schema.decodeEffect(Schema.fromJsonString(Report))(
@@ -178,16 +209,8 @@ const runCommand = Effect.fn("Lint.runCommand")(function* (root: string) {
     durationMs: result.durationMs ?? null,
   }));
 
-  const failed = failing(checks);
-
   return {
-    status: !report.value.configured
-      ? "unconfigured"
-      : failed.some((value) => value.status === "failed")
-        ? "failed"
-        : failed.length
-          ? "timedOut"
-          : "clean",
+    status: resultStatus(report.value.configured, checks),
     files: report.value.files.length,
     checks,
     message: report.value.message ?? defaultMessage,
@@ -196,18 +219,47 @@ const runCommand = Effect.fn("Lint.runCommand")(function* (root: string) {
 });
 
 /**
- * Lint a checkout unless its working tree matches the last result. Only one
- * run per checkout happens at a time; a call that finds one running returns
- * without waiting.
+ * Put the checks from a run of named checks in place of the previous ones,
+ * keeping the rest of the previous result.
+ */
+const mergeChecks = (
+  previous: LintResult | null | undefined,
+  outcome: Omit<LintResult, "fingerprint" | "finished">,
+) => {
+  if (!previous || outcome.status === "error") return outcome;
+
+  const checks = previous.checks.map(
+    (value) => outcome.checks.find((next) => next.name === value.name) ?? value,
+  );
+
+  const added = outcome.checks.filter(
+    (next) => !previous.checks.some((value) => value.name === next.name),
+  );
+
+  const merged = [...checks, ...added];
+
+  return {
+    ...outcome,
+    status: resultStatus(outcome.status !== "unconfigured", merged),
+    checks: merged,
+  };
+};
+
+/**
+ * Lint a checkout unless its working tree matches the last result. A scope
+ * always runs; checks named in `only` replace their previous results. Only
+ * one run per checkout happens at a time; a call that finds one running
+ * returns without waiting.
  */
 export const lintCheck = Effect.fn("Lint.check")(function* (
   root: string,
-  options: { readonly force?: boolean } = {},
+  options: { readonly force?: boolean } & LintScope = {},
 ) {
   const config = yield* RuntimeConfig;
   const fs = yield* FileSystem.FileSystem;
   const file = yield* stateFile(root);
   const previous = yield* readLint(root);
+  const partial = (options.only?.length ?? 0) > 0;
 
   if (previous?.running) return previous;
 
@@ -218,6 +270,8 @@ export const lintCheck = Effect.fn("Lint.check")(function* (
 
   if (
     !options.force &&
+    !options.all &&
+    !partial &&
     previous?.result &&
     previous.result.fingerprint === fingerprint
   )
@@ -263,7 +317,7 @@ export const lintCheck = Effect.fn("Lint.check")(function* (
       result: previous?.result ?? null,
     });
 
-    const outcome = yield* runCommand(root).pipe(
+    const outcome = yield* runCommand(root, options).pipe(
       Effect.catch((cause) =>
         Effect.succeed({
           status: "error",
@@ -280,9 +334,11 @@ export const lintCheck = Effect.fn("Lint.check")(function* (
       fingerprint,
       running: false,
       started: null,
+      // A partial run keeps the previous fingerprint, so the other checks
+      // still rerun once the working tree changes.
       result: {
-        ...outcome,
-        fingerprint,
+        ...(partial ? mergeChecks(previous?.result, outcome) : outcome),
+        fingerprint: (partial && previous?.result?.fingerprint) || fingerprint,
         finished: yield* Clock.currentTimeMillis,
       },
     };

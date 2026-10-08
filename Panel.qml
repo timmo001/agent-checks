@@ -291,8 +291,22 @@ Panel {
   function runLint(force) {
     if (!ready || lintProcess.running) return
     lintError = ""
+    lintProcess.scope = ""
     lintProcess.command = cli(["lint", "check"].concat(force ? ["--force"] : []))
     lintProcess.running = true
+  }
+
+  // Runs every check, or only the named one, whether or not files changed.
+  function runChecks(name) {
+    if (!ready || lintProcess.running) return
+    lintError = ""
+    lintProcess.scope = name ? "check:" + name : "all"
+    lintProcess.command = cli(["lint", "check", "--all"].concat(name ? ["--only", name] : []))
+    lintProcess.running = true
+  }
+
+  function checkRunning(name) {
+    return lintProcess.running && (lintProcess.scope === "all" || lintProcess.scope === "check:" + name)
   }
 
   function loadCiReport() {
@@ -471,6 +485,7 @@ Panel {
 
   Process {
     id: lintProcess
+    property string scope: ""
     stdout: StdioCollector { waitForEnd: true }
     stderr: StdioCollector { id: lintErrors; waitForEnd: true }
     onRunningChanged: if (running) root.refreshStatus()
@@ -646,17 +661,33 @@ Panel {
                 Component {
                   id: headingState
 
-                  Text {
-                    width: Math.min(implicitWidth, sectionHeading.width * 0.6)
-                    text: root.stateIcon(sectionColumn.info.status) + root.summaryText(sectionColumn.modelData.kind)
-                    textFormat: Text.PlainText
-                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignRight
-                    color: root.stateColor(sectionColumn.modelData.kind)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
+                  Row {
+                    spacing: Style.space(4)
+
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Math.min(implicitWidth, sectionHeading.width * 0.6)
+                      text: root.stateIcon(sectionColumn.info.status) + root.summaryText(sectionColumn.modelData.kind)
+                      textFormat: Text.PlainText
+                      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                      maximumLineCount: 2
+                      elide: Text.ElideRight
+                      horizontalAlignment: Text.AlignRight
+                      color: root.stateColor(sectionColumn.modelData.kind)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+
+                    PanelActionButton {
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: sectionColumn.modelData.kind === "lint"
+                      enabled: root.ready && !lintProcess.running
+                      iconText: "󰐊"
+                      tooltipText: "Run every check on every file"
+                      foreground: Qt.darker(root.contentForeground, 1.15)
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.runChecks("")
+                    }
                   }
                 }
               }
@@ -763,6 +794,16 @@ Panel {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(4)
+
+                    PanelActionButton {
+                      visible: !!rowSurface.modelData.check
+                      enabled: root.ready && !lintProcess.running
+                      iconText: rowSurface.modelData.check && root.checkRunning(rowSurface.modelData.check.name) ? "󰦖" : "󰐊"
+                      tooltipText: "Run " + (rowSurface.modelData.check ? rowSurface.modelData.check.name : "") + " on every file"
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: root.runChecks(rowSurface.modelData.check.name)
+                    }
 
                     PanelActionButton {
                       visible: !!rowSurface.modelData.run

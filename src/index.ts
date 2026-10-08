@@ -108,6 +108,16 @@ Command.make("agent-checks").pipe(
               Flag.withDescription("Run even if the working tree is unchanged"),
               Flag.withDefault(false),
             ),
+            all: Flag.Boolean("all").pipe(
+              Flag.withDescription("Lint every file, not only changed ones"),
+              Flag.withDefault(false),
+            ),
+            only: Flag.String("only").pipe(
+              Flag.atLeast(0),
+              Flag.withDescription(
+                "Run only this check, keeping the others' results; repeatable",
+              ),
+            ),
           },
           (options) => command(lintRun(options)),
         ).pipe(

@@ -113,8 +113,9 @@ retry where one helps. Opening the panel on CI or lint opens only that section.
 - **CI** lists the workflow runs. Failed runs expand to their failed jobs, steps
   and logs. From there you can paste or copy the prompt, open the Actions page,
   or launch a new agent to fix it in this checkout or in a new worktree.
-- **Lint** lists the failing checks with their output, and can paste, copy, run
-  lint again or launch a new agent in this checkout.
+- **Lint** lists every configured check with its output, and can paste, copy, run
+  lint again or launch a new agent in this checkout. The play buttons run every
+  check, or one check, on every file, even when nothing has changed.
 
 Worktree launches are CI only, since lint needs the checkout's uncommitted
 changes. The bar widget shows `CI` and `lint` for the focused workspace and opens
@@ -185,7 +186,8 @@ Create `config.json` in the directory printed by
   wrapped indicator and `{distance}` reads like `2 commits ago`.
 - `lint.templates` keys are `failure`, `timedOut`, `running`, `clean` and
   `unavailable`. `{count}` is the number of failed checks. The lint command must
-  print `dot agent-lint --json` output.
+  print `dot agent-lint --json` output, and accept its `--all` and `--only`
+  flags for the panel's run buttons.
 - `launchers` replaces the built-in agents: OpenCode, Pi, Cursor Agent, Claude
   Code, Codex, GitHub Copilot, OMP, Devin, Droid, Kimi, Kilo, Hermes, Qoder CLI,
   Qwen, Mastra Code, Antigravity CLI and Grok. Only launchers with an installed

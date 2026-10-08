@@ -150,10 +150,14 @@ export const ciLogs = Effect.fn("Checks.ciLogs")(function* (options: {
 export const lintRun = Effect.fn("Checks.lintRun")(function* (options: {
   readonly cwd: string;
   readonly force: boolean;
+  readonly all: boolean;
+  readonly only: readonly string[];
   readonly json: boolean;
 }) {
   const state = yield* lintCheck(yield* checkoutRoot(options.cwd), {
     force: options.force,
+    all: options.all,
+    only: options.only,
   });
 
   if (options.json) yield* printJson(LintState)(state);
