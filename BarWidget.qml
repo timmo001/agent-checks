@@ -30,15 +30,13 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true : false
   readonly property real openPanelIndicatorWidth: content.implicitWidth
-  readonly property color warningColor: "#e5c07b"
-  readonly property color mutedColor: "#9b9b9b"
   readonly property var displaySegments: {
     if (!entry || !checks || checks.stale) return []
     var segments = []
     if (entry.lintIndicator)
-      segments.push({ text: entry.lintIndicator.replace(" ", "\u2002"), color: toneColor(checks.lintTone(entry.lint)) })
+      segments.push({ text: entry.lintIndicator.replace(" ", "\u2002"), color: lintColor() })
     if (entry.ciIndicator)
-      segments.push({ text: entry.ciIndicator.replace(" ", "\u2002"), color: toneColor(checks.ciTone(entry.ci, entry.ciError)) })
+      segments.push({ text: entry.ciIndicator.replace(" ", "\u2002"), color: ciColor() })
     return segments
   }
   readonly property string tooltipText: {
@@ -50,10 +48,25 @@ BarWidget {
     return lines.join("\n")
   }
 
-  function toneColor(tone) {
-    if (tone === "failed") return bar ? bar.urgent : Color.urgent
-    if (tone === "running" || tone === "error") return warningColor
-    return mutedColor
+  // Matches the Herdr sidebar colours.
+  function lintColor() {
+    var tone = checks.lintTone(entry.lint)
+    if (tone === "failed") return "#f38ba8"
+    if (tone === "running" || tone === "error") return "#f9e2af"
+    return tone === "ok" ? "#a6e3a1" : "#73758a"
+  }
+
+  function ciColor() {
+    if (entry.ciError) return "#f9e2af"
+    if (entry.target && !entry.ci) return "#89b4fa"
+    var tone = checks.ciTone(entry.ci, null)
+    if (entry.ciIndicator.indexOf("↶") >= 0) {
+      if (tone === "ok") return "#7f9f7a"
+      return tone === "running" ? "#b3a078" : "#b07883"
+    }
+    if (tone === "failed") return "#f38ba8"
+    if (tone === "running") return "#f9e2af"
+    return tone === "ok" ? "#a6e3a1" : "#73758a"
   }
 
   function activeWidget() {
@@ -159,12 +172,12 @@ BarWidget {
     Row {
       id: content
       anchors.centerIn: parent
+      spacing: 10
       Repeater {
         model: root.displaySegments
         Text {
           required property var modelData
-          required property int index
-          text: (index > 0 ? " " : "") + modelData.text
+          text: modelData.text
           color: modelData.color
           font.family: button.fontFamily
           font.pixelSize: button.fontSize
