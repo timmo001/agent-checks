@@ -102,6 +102,7 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 
 [[tools."npm:markdownlint-cli2"]]
 version = "0.23.3"
+aube = { path = ".mise/locks/npm-markdownlint-cli2/0.23.3", digest = "sha256:39523bb981360d43f75c10a114ee091e42ff45a76d3c2c666a283ff017bd4926" }
 backend = "npm:markdownlint-cli2"
 specifiers = ["0.23.3"]
 
