@@ -69,8 +69,8 @@ Add the tokens to Herdr's sidebar and bind the actions:
 rows = [
   ["state_icon", "workspace"],
   ["branch", "git_status",
-    { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF4B1  ⚠", fg = "#f9e2af" }, { equals = "\uF4B1  ↻", fg = "#f9e2af" }, { equals = "\uF4B1  ✓", fg = "#a6e3a1" }] },
-    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E  ⚠", fg = "#f9e2af" }, { equals = "\uF52E  …", fg = "#89b4fa" }, { equals = "\uF52E  ↻", fg = "#f9e2af" }, { equals = "\uF52E  ✓", fg = "#a6e3a1" }] }],
+    { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF4B1\u2009⚠", fg = "#f9e2af" }, { equals = "\uF4B1\u2009↻", fg = "#f9e2af" }, { equals = "\uF4B1\u2009✓", fg = "#a6e3a1" }] },
+    { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E\u2009⚠", fg = "#f9e2af" }, { equals = "\uF52E\u2009…", fg = "#89b4fa" }, { equals = "\uF52E\u2009↻", fg = "#f9e2af" }, { equals = "\uF52E\u2009✓", fg = "#a6e3a1" }] }],
 ]
 
 [[keys.command]]
@@ -159,14 +159,14 @@ Create `config.json` in the directory printed by
   "showIdle": false,
   "showPrevious": true,
   "indicatorTemplates": {
-    "failure": "\uF52E  !{count}",
+    "failure": "\uF52E\u2009!{count}",
     "previous": "{status} ↶{count}"
   },
   "lint": {
     "enabled": true,
     "command": ["dot", "agent-lint", "--json"],
     "timeoutSeconds": 600,
-    "templates": { "failure": "\uF4B1  !{count}" }
+    "templates": { "failure": "\uF4B1\u2009!{count}" }
   },
   "launchers": [{ "id": "pi", "label": "Pi", "argv": ["pi"], "agent": "pi" }]
 }
