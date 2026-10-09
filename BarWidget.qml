@@ -36,9 +36,9 @@ BarWidget {
     if (!entry || !checks || checks.stale) return []
     var segments = []
     if (entry.lintIndicator)
-      segments.push({ text: entry.lintIndicator, color: toneColor(checks.lintTone(entry.lint)) })
+      segments.push({ text: entry.lintIndicator.replace(" ", "\u2002"), color: toneColor(checks.lintTone(entry.lint)) })
     if (entry.ciIndicator)
-      segments.push({ text: entry.ciIndicator, color: toneColor(checks.ciTone(entry.ci, entry.ciError)) })
+      segments.push({ text: entry.ciIndicator.replace(" ", "\u2002"), color: toneColor(checks.ciTone(entry.ci, entry.ciError)) })
     return segments
   }
   readonly property string tooltipText: {
