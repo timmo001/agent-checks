@@ -311,10 +311,10 @@ export class RuntimeConfig extends Context.Service<
           enabled: settings.reviews?.enabled ?? true,
           pollMs: (settings.reviews?.pollSeconds ?? 60) * 1000,
           templates: {
-            open: reviewTemplates?.open ?? "PR !{count}",
-            requested: reviewTemplates?.requested ?? "PR ↻",
-            clear: reviewTemplates?.clear ?? "PR ✓",
-            unavailable: reviewTemplates?.unavailable ?? "PR ⚠",
+            open: reviewTemplates?.open ?? "\uF407 !{count}",
+            requested: reviewTemplates?.requested ?? "\uF407 ↻",
+            clear: reviewTemplates?.clear ?? "\uF407 ✓",
+            unavailable: reviewTemplates?.unavailable ?? "\uF407 ⚠",
           },
         },
       });

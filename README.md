@@ -33,10 +33,11 @@ It publishes three tokens for Herdr's sidebar:
   progress, `…` that the first result is loading and `⚠` that GitHub or the
   repository could not be read. `✓` and `○` (no runs) need `showSuccess` and
   `showIdle`.
-- `$timmo_agent_checks_reviews` shows the review state of the branch's open pull
-  request: `PR !2` for two open review threads, `PR ↻` when a bot review is
-  requested, `PR ✓` when neither, and `PR ⚠` when the reviews could not be read.
-  It is empty without an open pull request.
+- `$timmo_agent_checks_reviews` starts with the Nerd Font git pull request icon
+  (`U+F407`) and shows the review state of the branch's open pull request. `!2`
+  after it means two open review threads, `↻` that a bot review is requested,
+  `✓` neither, and `⚠` that the reviews could not be read. It is empty without
+  an open pull request.
 
 Failed, timed-out, startup-failed and action-required runs need attention;
 cancelled, neutral and skipped runs do not. Reruns replace the previous attempt.
@@ -87,7 +88,7 @@ rows = [
   ["branch", "git_status",
     { token = "$timmo_agent_checks_lint", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF4B1 ⚠", fg = "#f9e2af" }, { equals = "\uF4B1 ↻", fg = "#f9e2af" }, { equals = "\uF4B1 ✓", fg = "#a6e3a1" }] },
     { token = "$timmo_agent_checks_ci", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF52E ⚠", fg = "#f9e2af" }, { equals = "\uF52E …", fg = "#89b4fa" }, { equals = "\uF52E ↻", fg = "#f9e2af" }, { equals = "\uF52E ✓", fg = "#a6e3a1" }] },
-    { token = "$timmo_agent_checks_reviews", fg = "#f38ba8", dim = false, rules = [{ equals = "PR ⚠", fg = "#f9e2af" }, { equals = "PR ↻", fg = "#f9e2af" }, { equals = "PR ✓", fg = "#a6e3a1" }] }],
+    { token = "$timmo_agent_checks_reviews", fg = "#f38ba8", dim = false, rules = [{ equals = "\uF407 ⚠", fg = "#f9e2af" }, { equals = "\uF407 ↻", fg = "#f9e2af" }, { equals = "\uF407 ✓", fg = "#a6e3a1" }] }],
 ]
 
 [[keys.command]]
@@ -206,7 +207,7 @@ Create `config.json` in the directory printed by
   "reviews": {
     "enabled": true,
     "pollSeconds": 60,
-    "templates": { "open": "PR !{count}" }
+    "templates": { "open": "\uF407 !{count}" }
   },
   "launchers": [{ "id": "pi", "label": "Pi", "argv": ["pi"], "agent": "pi" }]
 }
