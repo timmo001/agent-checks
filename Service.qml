@@ -58,6 +58,14 @@ Item {
     return status === "clean" ? "ok" : "none"
   }
 
+  // Open threads need attention; a requested bot review is still running.
+  function reviewsTone(reviews, error) {
+    if (error) return "error"
+    if (!reviews) return "none"
+    if (reviews.state === "open") return "failed"
+    return reviews.state === "requested" ? "running" : "ok"
+  }
+
   // Runs the CLI from the Herdr plugin checkout against the focused session.
   function command(args) {
     return ["env", "-C", pluginRoot, "HERDR_SOCKET_PATH=" + socketPath,

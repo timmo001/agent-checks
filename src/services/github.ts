@@ -100,6 +100,10 @@ export class GitHub extends Context.Service<
       { readonly jobs: ReadonlyArray<typeof Job.Type>; readonly logs: string },
       GitHubError
     >;
+    /** The open pull request from the target's branch, if any. */
+    readonly pullRequest: (
+      target: Target,
+    ) => Effect.Effect<number | null, GitHubError>;
   }
 >()("agent-checks/GitHub") {
   static readonly layer = Layer.effect(
@@ -107,6 +111,37 @@ export class GitHub extends Context.Service<
     Effect.gen(function* () {
       const process = yield* Process;
       const gh = yield* Gh;
+
+      // A branch made with `git switch -c name origin/dev`, or pushed without
+      // -u, still tracks the branch it started from. It is the checkout's own
+      // branch once pushed under its name, or when it tracks the default branch.
+      const branchedFrom = Effect.fn("GitHub.branchedFrom")(function* (
+        root: string,
+        remote: string,
+        tracked: string,
+        local: string,
+      ) {
+        const pushed = yield* process.run(
+          "git",
+          [
+            "show-ref",
+            "--verify",
+            "--quiet",
+            `refs/remotes/${remote}/${local}`,
+          ],
+          root,
+        );
+
+        if (pushed.code === 0) return true;
+
+        const head = yield* process.run(
+          "git",
+          ["symbolic-ref", "--quiet", "--short", `refs/remotes/${remote}/HEAD`],
+          root,
+        );
+
+        return head.code === 0 && head.stdout === `${remote}/${tracked}`;
+      });
 
       // Takes a checkout root from gitRoot.
       const discover = Effect.fn("GitHub.discover")(
@@ -161,16 +196,22 @@ export class GitHub extends Context.Service<
 
             if (!match?.[1]) continue;
 
+            const tracked =
+              remote === upstream.stdout &&
+              merge.stdout.startsWith("refs/heads/")
+                ? merge.stdout.slice(11)
+                : branch.stdout;
+
             return {
               root,
               remote,
               repository: match[1],
               localBranch: branch.stdout,
               branch:
-                remote === upstream.stdout &&
-                merge.stdout.startsWith("refs/heads/")
-                  ? merge.stdout.slice(11)
-                  : branch.stdout,
+                tracked !== branch.stdout &&
+                (yield* branchedFrom(root, remote, tracked, branch.stdout))
+                  ? branch.stdout
+                  : tracked,
             };
           }
 
@@ -357,7 +398,34 @@ export class GitHub extends Context.Service<
           ),
       );
 
-      return GitHub.of({ discover, status, details });
+      const pullRequest = Effect.fn("GitHub.pullRequest")(
+        function* (target: Target) {
+          const pulls = yield* Api.json(
+            {
+              endpoint: `repos/${target.repository}/pulls`,
+              method: "GET",
+              hostname: "github.com",
+              query: {
+                head: `${target.repository.split("/")[0]}:${target.branch}`,
+                state: "open",
+                per_page: 1,
+              },
+            },
+            Schema.Array(Schema.Struct({ number: Schema.Int })),
+          );
+
+          return pulls[0]?.number ?? null;
+        },
+        (effect) =>
+          effect.pipe(
+            Effect.provideService(Gh, gh),
+            Effect.mapError(
+              (cause) => new GitHubError({ message: String(cause) }),
+            ),
+          ),
+      );
+
+      return GitHub.of({ discover, status, details, pullRequest });
     }),
   );
 }

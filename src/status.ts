@@ -1,7 +1,9 @@
 import { Effect, FileSystem, Option, Path, Schema } from "effect";
 import { RuntimeConfig } from "./config";
 import { LintState, lintPrompt, readLint } from "./lint";
+import { reviewsPrompt } from "./actions/prompt";
 import { Status, Target } from "./services/github";
+import { Reviews } from "./services/reviews";
 
 /** Written by the watcher; the Omarchy bar and panel follow it. */
 const StatusFile = Schema.Struct({
@@ -17,6 +19,10 @@ const StatusFile = Schema.Struct({
       ciIndicator: Schema.NullOr(Schema.String),
       lint: Schema.NullOr(LintState),
       lintIndicator: Schema.NullOr(Schema.String),
+      reviews: Schema.NullOr(Reviews),
+      reviewsPending: Schema.Boolean,
+      reviewsError: Schema.NullOr(Schema.String),
+      reviewsIndicator: Schema.NullOr(Schema.String),
     }),
   ),
 });
@@ -74,6 +80,12 @@ export const checkoutStatus = Effect.fn("Status.checkout")(function* (
       lint?.result?.status === "failed" || lint?.result?.status === "timedOut"
         ? lintPrompt(root, lint.result)
         : null,
+    reviews: entry?.reviews ?? null,
+    reviewsPending: entry?.reviewsPending ?? false,
+    reviewsError: entry?.reviewsError ?? null,
+    reviewsPrompt: entry?.reviews?.threads.length
+      ? reviewsPrompt(entry.reviews)
+      : null,
   };
 });
 
@@ -87,4 +99,8 @@ export const CheckoutStatus = Schema.Struct({
   ciError: Schema.NullOr(Schema.String),
   lint: Schema.NullOr(LintState),
   lintPrompt: Schema.NullOr(Schema.String),
+  reviews: Schema.NullOr(Reviews),
+  reviewsPending: Schema.Boolean,
+  reviewsError: Schema.NullOr(Schema.String),
+  reviewsPrompt: Schema.NullOr(Schema.String),
 });

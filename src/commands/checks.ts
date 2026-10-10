@@ -2,18 +2,19 @@ import { Gh } from "@timmo001/effect-gh";
 import { HerdrSdk, PaneId } from "@timmo001/effect-herdr";
 import { Console, Effect, Match, Option, Path, Schema } from "effect";
 import { availableLaunchers, launchAgent, pasteDraft } from "../actions/agent";
-import { CiFailures, ciFailures } from "../actions/prompt";
+import { CiFailures, ciFailures, reviewsPrompt } from "../actions/prompt";
 import { pluginId } from "../config";
 import { ActionError } from "../errors";
 import { LintState, lintCheck, lintPrompt } from "../lint";
 import { GitHub } from "../services/github";
 import { gitRoot } from "../services/git";
-import { focusedPane } from "../services/herdr";
+import { focusedPane, paneDirectory } from "../services/herdr";
 import { Process, ProcessError } from "../services/process";
+import { PullRequestReviews } from "../services/reviews";
 import { CheckoutStatus, checkoutStatus, statusFile } from "../status";
 import { start } from "./watch";
 
-type Kind = "ci" | "lint";
+type Kind = "ci" | "lint" | "reviews";
 
 const printJson = <S extends Schema.Constraint>(schema: S) =>
   Effect.fn("Checks.printJson")(function* (value: S["Type"]) {
@@ -40,7 +41,8 @@ const origin = Effect.fn("Checks.origin")(function* (options: {
 
   const cwd = Option.isSome(options.cwd)
     ? options.cwd.value
-    : (Option.getOrUndefined(
+    : (paneDirectory(pane) ??
+      Option.getOrUndefined(
         Option.flatMap(
           Option.fromNullishOr(
             (yield* herdr.session.snapshot()).workspaces.find(
@@ -49,7 +51,7 @@ const origin = Effect.fn("Checks.origin")(function* (options: {
           ),
           (workspace) => workspace.worktree,
         ),
-      )?.checkoutPath ?? Option.getOrUndefined(pane.cwd));
+      )?.checkoutPath);
 
   if (!cwd)
     return yield* new ActionError({
@@ -121,6 +123,33 @@ const lintFor = Effect.fn("Checks.lintFor")(function* (root: string) {
   return lintPrompt(root, result);
 });
 
+/** The open review threads on the checkout's pull request, fetched fresh. */
+const reviewsFor = Effect.fn("Checks.reviewsFor")(function* (root: string) {
+  const target = yield* (yield* GitHub).discover(root);
+
+  if (!target)
+    return yield* new ActionError({
+      message: `${root} is not on a branch with a GitHub remote`,
+    });
+
+  const reviews = yield* (yield* PullRequestReviews).forTarget(target);
+
+  if (!reviews)
+    return yield* new ActionError({
+      message: `${target.branch} has no open pull request`,
+    });
+
+  if (!reviews.threads.length)
+    return yield* new ActionError({
+      message: `#${reviews.number} has no open review threads`,
+    });
+
+  return reviewsPrompt(reviews);
+});
+
+const draftFor = (kind: Exclude<Kind, "ci">, root: string) =>
+  kind === "lint" ? lintFor(root) : reviewsFor(root);
+
 export const paths = Effect.gen(function* () {
   yield* printJson(Schema.Struct({ status: Schema.String }))({
     status: yield* statusFile,
@@ -182,7 +211,7 @@ export const paste = Effect.fn("Checks.paste")(function* (options: {
     pane.id,
     options.kind === "ci"
       ? (yield* ciFor(root, Option.none())).failures.prompt
-      : yield* lintFor(root),
+      : yield* draftFor(options.kind, root),
   );
 });
 
@@ -206,17 +235,20 @@ export const launch = Effect.fn("Checks.launch")(function* (options: {
 }) {
   const { pane, root } = yield* origin(options);
 
-  if (options.kind === "lint") {
+  if (options.kind !== "ci") {
     if (options.worktree)
       return yield* new ActionError({
-        message: "Lint fixes need this checkout's uncommitted changes",
+        message:
+          options.kind === "lint"
+            ? "Lint fixes need this checkout's uncommitted changes"
+            : "Review fixes belong on the pull request's branch",
       });
 
     yield* launchAgent({
       origin: pane,
       root,
       launcherId: options.launcher,
-      prompt: yield* lintFor(root),
+      prompt: yield* draftFor(options.kind, root),
       worktree: null,
     });
 

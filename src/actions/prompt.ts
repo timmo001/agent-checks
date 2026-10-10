@@ -9,6 +9,7 @@ import {
   type Status,
   type Target,
 } from "../services/github";
+import type { Reviews } from "../services/reviews";
 import { plain } from "../text";
 
 const instruction =
@@ -166,3 +167,25 @@ export const ciFailures = Effect.fn("Prompt.ciFailures")(function* (
     ),
   };
 });
+
+/** The open review threads, for an agent to triage with dot-pr-watch. */
+export function reviewsPrompt(reviews: Reviews) {
+  return plain(
+    [
+      `Open review threads on #${reviews.number}: ${reviews.title} (${reviews.url})`,
+      ...reviews.threads.map((thread) =>
+        [
+          `#### ${thread.location} [${thread.id}]`,
+          ...thread.comments.map(
+            (comment) =>
+              `**${comment.author}** (${comment.url}):\n\n${comment.body
+                .split("\n")
+                .map((line) => `> ${line}`)
+                .join("\n")}`,
+          ),
+        ].join("\n\n"),
+      ),
+      "Load the dot-pr-watch skill and follow its Triage section for these threads, then fix the valid ones.",
+    ].join("\n\n"),
+  );
+}

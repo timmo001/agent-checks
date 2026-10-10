@@ -20,8 +20,10 @@ import { GitHub } from "./services/github";
 import { ghLayer } from "./services/gh";
 import { herdrLayer } from "./services/herdr";
 import { Process } from "./services/process";
+import { PullRequestReviews } from "./services/reviews";
 
-const application = GitHub.layer.pipe(
+const application = PullRequestReviews.layer.pipe(
+  Layer.provideMerge(GitHub.layer),
   Layer.provideMerge(Layer.mergeAll(Process.layer, herdrLayer, ghLayer)),
   Layer.provideMerge(RuntimeConfig.layer),
   Layer.provideMerge(NodeServices.layer),
@@ -44,7 +46,7 @@ const origin = {
   ),
 };
 
-const kind = Flag.Literals("kind", ["ci", "lint"]).pipe(
+const kind = Flag.Literals("kind", ["ci", "lint", "reviews"]).pipe(
   Flag.withDescription("Which check to act on"),
 );
 
@@ -63,7 +65,7 @@ const command = <A, E>(
 ) => effect.pipe(Effect.provide(application));
 
 Command.make("agent-checks").pipe(
-  Command.withDescription("CI and lint status for Herdr workspaces"),
+  Command.withDescription("CI, lint and review status for Herdr workspaces"),
   Command.withSubcommands([
     Command.make("start", {}, () => command(start)).pipe(
       Command.withDescription("Start the watcher unless one is running"),
@@ -83,7 +85,9 @@ Command.make("agent-checks").pipe(
     ),
     Command.make("status", { cwd, json }, (options) =>
       command(status(options.cwd)),
-    ).pipe(Command.withDescription("Print the published CI and lint status")),
+    ).pipe(
+      Command.withDescription("Print the published CI, lint and review status"),
+    ),
     Command.make("ci").pipe(
       Command.withDescription("GitHub Actions results"),
       Command.withSubcommands([
@@ -131,7 +135,7 @@ Command.make("agent-checks").pipe(
       command(paste(options)),
     ).pipe(
       Command.withDescription(
-        "Paste the CI or lint draft into a ready agent without submitting it",
+        "Paste the CI, lint or review draft into a ready agent without submitting it",
       ),
     ),
     Command.make("launchers", { cwd, json }, (options) =>
@@ -157,7 +161,7 @@ Command.make("agent-checks").pipe(
       (options) => command(launch(options)),
     ).pipe(
       Command.withDescription(
-        "Start an agent beside the pane and submit the CI or lint draft",
+        "Start an agent beside the pane and submit the CI, lint or review draft",
       ),
     ),
     Command.make("browser", { cwd, run, json }, (options) =>

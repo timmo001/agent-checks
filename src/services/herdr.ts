@@ -7,7 +7,13 @@ import {
   type Workspace,
 } from "@timmo001/effect-herdr";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
-import { RuntimeConfig, ciToken, lintToken, pluginId } from "../config";
+import {
+  RuntimeConfig,
+  ciToken,
+  lintToken,
+  pluginId,
+  reviewsToken,
+} from "../config";
 import { ActionError } from "../errors";
 
 export const herdrLayer = Layer.unwrap(
@@ -27,7 +33,11 @@ export const enabled = Effect.gen(function* () {
   return plugins.some((plugin) => plugin.id === pluginId && plugin.enabled);
 });
 
-export const cleared = { [ciToken]: null, [lintToken]: null };
+export const cleared = {
+  [ciToken]: null,
+  [lintToken]: null,
+  [reviewsToken]: null,
+};
 
 export const metadata = Effect.fn("Herdr.metadata")(function* (
   id: WorkspaceId,
@@ -49,13 +59,33 @@ export const metadata = Effect.fn("Herdr.metadata")(function* (
     );
 });
 
+/**
+ * Where a pane is working: its foreground process's directory, so an agent
+ * that moved into another worktree counts there, as in dot's Herdr context.
+ */
+export function paneDirectory(pane: Pane) {
+  return Option.getOrUndefined(
+    Option.orElse(pane.foregroundCwd, () => pane.cwd),
+  );
+}
+
+/**
+ * A workspace's checkout: that of the active tab's focused pane, else its
+ * agent or first pane, else the workspace's worktree.
+ */
 export function checkout(workspace: Workspace, panes: ReadonlyArray<Pane>) {
+  const own = panes.filter((pane) => pane.workspaceId === workspace.id);
+  const active = own.filter((pane) => pane.tabId === workspace.activeTabId);
+
+  const pane =
+    active.find((value) => value.focused) ??
+    active.find((value) => Option.isSome(value.agent)) ??
+    active[0] ??
+    own[0];
+
   return (
-    Option.getOrUndefined(workspace.worktree)?.checkoutPath ??
-    Option.getOrUndefined(
-      panes.find((pane) => pane.workspaceId === workspace.id)?.cwd ??
-        Option.none(),
-    )
+    (pane ? paneDirectory(pane) : undefined) ??
+    Option.getOrUndefined(workspace.worktree)?.checkoutPath
   );
 }
 

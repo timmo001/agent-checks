@@ -11,7 +11,6 @@ import {
   FiberHandle,
   FiberSet,
   FileSystem,
-  Option,
   Path,
   Queue,
   Result,
@@ -20,9 +19,9 @@ import {
   Stream,
 } from "effect";
 import { check, lock } from "proper-lockfile";
-import { RuntimeConfig, ciToken, lintToken } from "../config";
+import { RuntimeConfig, ciToken, lintToken, reviewsToken } from "../config";
 import { reportError } from "../errors";
-import { ciIndicator, lintIndicator } from "../indicator";
+import { ciIndicator, lintIndicator, reviewsIndicator } from "../indicator";
 import { lintCheck, lintDirectory, readLint } from "../lint";
 import {
   GitHub,
@@ -31,9 +30,16 @@ import {
   type Target,
 } from "../services/github";
 import { gitRoot } from "../services/git";
-import { checkout, cleared, enabled, metadata } from "../services/herdr";
+import {
+  checkout,
+  cleared,
+  enabled,
+  metadata,
+  paneDirectory,
+} from "../services/herdr";
 import { ProcessError, detachWatcher } from "../services/process";
 import { waitForUpdate } from "../services/reload";
+import { PullRequestReviews, type Reviews } from "../services/reviews";
 import { writeStatus } from "../status";
 
 export const start = Effect.gen(function* () {
@@ -58,6 +64,12 @@ type CachedTarget = {
   readonly error: string | null;
 };
 
+type CachedReviews = {
+  readonly next: number;
+  readonly reviews: Reviews | null;
+  readonly error: string | null;
+};
+
 const activePollMs = 3_000;
 
 function unfinished(status: Status | null) {
@@ -72,6 +84,7 @@ const runWatcher = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const herdr = yield* HerdrSdk;
   const github = yield* GitHub;
+  const pullRequestReviews = yield* PullRequestReviews;
   const compromised = yield* Deferred.make<never, ProcessError>();
 
   const lease = yield* Effect.acquireRelease(
@@ -116,6 +129,7 @@ const runWatcher = Effect.gen(function* () {
   const workspaces = new Map<WorkspaceId, string>();
   const discoveryErrors = new Map<WorkspaceId, string>();
   const cached = new Map<string, CachedTarget>();
+  const reviewsCached = new Map<string, CachedReviews>();
   const wake = yield* Queue.sliding<void>(1);
 
   yield* Effect.addFinalizer(() =>
@@ -278,6 +292,9 @@ const runWatcher = Effect.gen(function* () {
 
     for (const key of cached.keys()) if (!targets.has(key)) cached.delete(key);
 
+    for (const key of reviewsCached.keys())
+      if (!targets.has(key)) reviewsCached.delete(key);
+
     for (const id of workspaces.keys())
       if (!snapshot.workspaces.some((workspace) => workspace.id === id)) {
         workspaces.delete(id);
@@ -319,28 +336,30 @@ const runWatcher = Effect.gen(function* () {
   let nextPoll = 0;
   const paneCwds = new Map<string, string | undefined>();
 
-  // New workspaces and directory changes would otherwise wait for the next
-  // periodic discovery.
+  // New workspaces, focus and directory changes would otherwise wait for the
+  // next periodic discovery.
   yield* herdr.events
     .subscribe([
       { type: "workspace.created" },
       { type: "workspace.closed" },
       { type: "worktree.opened" },
+      { type: "tab.focused" },
       { type: "pane.created" },
       { type: "pane.updated" },
+      { type: "pane.focused" },
       { type: "pane.closed" },
     ])
     .pipe(
       Stream.runForEach((event) =>
         Effect.gen(function* () {
           if (event.type === "pane.updated") {
-            // Title changes also emit this event, so only a new cwd counts.
-            const cwd = Option.getOrUndefined(event.pane.cwd);
+            // Title changes also emit this event, so only a new directory counts.
+            const cwd = paneDirectory(event.pane);
 
             if (paneCwds.get(event.pane.id) === cwd) return;
             paneCwds.set(event.pane.id, cwd);
           } else if (event.type === "pane.created") {
-            paneCwds.set(event.pane.id, Option.getOrUndefined(event.pane.cwd));
+            paneCwds.set(event.pane.id, paneDirectory(event.pane));
           } else if (event.type === "pane.closed") {
             paneCwds.delete(event.paneId);
           }
@@ -436,6 +455,58 @@ const runWatcher = Effect.gen(function* () {
       { concurrency: config.concurrency, discard: true },
     );
 
+    // Reviews poll on their own, slower interval, one target per pass.
+    const now = yield* Clock.currentTimeMillis;
+
+    const dueReviews = config.reviews.enabled
+      ? [...targets]
+          .filter(([key]) => (reviewsCached.get(key)?.next ?? 0) <= now)
+          .sort(
+            ([left], [right]) =>
+              (reviewsCached.get(left)?.next ?? 0) -
+              (reviewsCached.get(right)?.next ?? 0),
+          )
+          .slice(0, 1)
+      : [];
+
+    yield* Effect.forEach(
+      dueReviews,
+      Effect.fn("Watch.pollReviews")(function* ([key, target]) {
+        const previous = reviewsCached.get(key);
+
+        const result = yield* pullRequestReviews
+          .forTarget(target)
+          .pipe(Effect.result);
+
+        const finished = yield* Clock.currentTimeMillis;
+
+        if (Result.isFailure(result)) {
+          if (previous?.error !== String(result.failure))
+            yield* reportError(
+              Cause.fail(result.failure),
+              "Pull request reviews unavailable",
+            ).pipe(
+              Effect.annotateLogs({
+                repository: target.repository,
+                branch: target.branch,
+              }),
+            );
+          reviewsCached.set(key, {
+            next: finished + config.retryMs,
+            reviews: null,
+            error: String(result.failure),
+          });
+        } else {
+          reviewsCached.set(key, {
+            next: finished + config.reviews.pollMs,
+            reviews: result.success,
+            error: null,
+          });
+        }
+      }),
+      { discard: true },
+    );
+
     const entries = yield* Effect.forEach(
       discovered,
       Effect.fn("Watch.publish")(function* (item) {
@@ -460,7 +531,24 @@ const runWatcher = Effect.gen(function* () {
           ? lintIndicator(lintState, config.lint.templates)
           : null;
 
-        yield* metadata(item.id, { [ciToken]: ci, [lintToken]: lintValue });
+        const reviews = item.target
+          ? reviewsCached.get(targetKey(item.target))
+          : undefined;
+
+        const reviewsValue = !config.reviews.enabled
+          ? null
+          : reviews?.error
+            ? config.reviews.templates.unavailable
+            : reviewsIndicator(
+                reviews?.reviews ?? null,
+                config.reviews.templates,
+              );
+
+        yield* metadata(item.id, {
+          [ciToken]: ci,
+          [lintToken]: lintValue,
+          [reviewsToken]: reviewsValue,
+        });
 
         return {
           workspace: item.id,
@@ -472,6 +560,11 @@ const runWatcher = Effect.gen(function* () {
           ciIndicator: ci,
           lint: lintState,
           lintIndicator: lintValue,
+          reviews: reviews?.reviews ?? null,
+          reviewsPending:
+            config.reviews.enabled && item.target !== null && !reviews,
+          reviewsError: reviews?.error ?? null,
+          reviewsIndicator: reviewsValue,
         };
       }),
       { concurrency: config.concurrency },
@@ -489,6 +582,9 @@ const runWatcher = Effect.gen(function* () {
 
         return next === undefined ? 0 : Math.max(nextPoll, next);
       }),
+      ...(config.reviews.enabled
+        ? [...targets.keys()].map((key) => reviewsCached.get(key)?.next ?? 0)
+        : []),
     );
 
     return Math.max(0, nextRefresh - (yield* Clock.currentTimeMillis));

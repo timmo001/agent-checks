@@ -2,7 +2,7 @@ id = "timmo.agent-checks"
 name = "Agent Checks"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "CI and lint status for each workspace, with an Omarchy panel"
+description = "CI, lint and PR review status for each workspace, with an Omarchy panel"
 platforms = ["linux"]
 
 [[build]]
@@ -41,6 +41,12 @@ contexts = ["workspace", "pane"]
 command = ["mise", "exec", "--", "bun", "dist/index.js", "open", "--kind", "lint"]
 
 [[actions]]
+id = "reviews"
+title = "Open PR reviews"
+contexts = ["workspace", "pane"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "open", "--kind", "reviews"]
+
+[[actions]]
 id = "paste-ci"
 title = "Paste CI failures into this agent"
 contexts = ["pane"]
@@ -51,3 +57,9 @@ id = "paste-lint"
 title = "Paste lint failures into this agent"
 contexts = ["pane"]
 command = ["mise", "exec", "--", "bun", "dist/index.js", "paste", "--kind", "lint"]
+
+[[actions]]
+id = "paste-reviews"
+title = "Paste open review threads into this agent"
+contexts = ["pane"]
+command = ["mise", "exec", "--", "bun", "dist/index.js", "paste", "--kind", "reviews"]

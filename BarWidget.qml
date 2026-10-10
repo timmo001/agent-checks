@@ -37,6 +37,8 @@ BarWidget {
       segments.push({ text: entry.lintIndicator.replace(" ", "\u2002"), color: lintColor() })
     if (entry.ciIndicator)
       segments.push({ text: entry.ciIndicator.replace(" ", "\u2002"), color: ciColor() })
+    if (entry.reviewsIndicator)
+      segments.push({ text: entry.reviewsIndicator.replace(" ", "\u2002"), color: reviewsColor() })
     return segments
   }
   readonly property string tooltipText: {
@@ -44,7 +46,9 @@ BarWidget {
     var lines = []
     if (entry.target) lines.push(entry.target.repository + " · " + entry.target.branch)
     else if (entry.root) lines.push(entry.root)
+    if (entry.reviews) lines.push("#" + entry.reviews.number + " " + entry.reviews.title)
     if (entry.ciError) lines.push("CI: " + entry.ciError)
+    if (entry.reviewsError) lines.push("Reviews: " + entry.reviewsError)
     return lines.join("\n")
   }
 
@@ -69,6 +73,13 @@ BarWidget {
     return tone === "ok" ? "#a6e3a1" : "#73758a"
   }
 
+  function reviewsColor() {
+    var tone = checks.reviewsTone(entry.reviews, entry.reviewsError)
+    if (tone === "failed") return "#f38ba8"
+    if (tone === "running" || tone === "error") return "#f9e2af"
+    return tone === "ok" ? "#a6e3a1" : "#73758a"
+  }
+
   function activeWidget() {
     if (root.activeInstance) return root
     var items = root.bar && typeof root.bar.moduleWidgets === "function"
@@ -78,7 +89,7 @@ BarWidget {
     return null
   }
 
-  // `mode` is overview, ci or lint; an empty cwd or pane means the focused one.
+  // `mode` is overview, ci, lint or reviews; an empty cwd or pane means the focused one.
   function open(mode, cwd, pane) {
     var widget = activeWidget()
     if (widget && widget !== root) { widget.open(mode, cwd, pane); return }
@@ -150,6 +161,7 @@ BarWidget {
         function open(): void { root.open("overview") }
         function ci(cwd: string, pane: string): void { root.open("ci", cwd, pane) }
         function lint(cwd: string, pane: string): void { root.open("lint", cwd, pane) }
+        function reviews(cwd: string, pane: string): void { root.open("reviews", cwd, pane) }
         function toggle(): void { root.togglePanel() }
         function close(): void { root.close() }
       }

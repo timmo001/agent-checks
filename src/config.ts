@@ -8,6 +8,8 @@ export const ciToken = "timmo_agent_checks_ci";
 
 export const lintToken = "timmo_agent_checks_lint";
 
+export const reviewsToken = "timmo_agent_checks_reviews";
+
 export function stateDirectory(root: string, socket: string) {
   return join(
     root,
@@ -102,6 +104,21 @@ const LintSettings = Schema.Struct({
   templates: Schema.optionalKey(LintTemplates),
 });
 
+const ReviewTemplates = Schema.Struct({
+  open: Schema.optionalKey(Text),
+  requested: Schema.optionalKey(Text),
+  clear: Schema.optionalKey(Text),
+  unavailable: Schema.optionalKey(Text),
+});
+
+const ReviewSettings = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  pollSeconds: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 30, maximum: 3600 })),
+  ),
+  templates: Schema.optionalKey(ReviewTemplates),
+});
+
 const Settings = Schema.Struct({
   pollSeconds: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 3600 })),
@@ -121,6 +138,7 @@ const Settings = Schema.Struct({
   indicatorTemplates: Schema.optionalKey(IndicatorTemplates),
   launchers: Schema.optionalKey(Schema.Array(Launcher)),
   lint: Schema.optionalKey(LintSettings),
+  reviews: Schema.optionalKey(ReviewSettings),
 });
 
 // The Omarchy panel runs commands outside Herdr with only the socket set, so
@@ -196,6 +214,11 @@ export class RuntimeConfig extends Context.Service<
       readonly timeoutMs: number;
       readonly templates: Required<typeof LintTemplates.Type>;
     };
+    readonly reviews: {
+      readonly enabled: boolean;
+      readonly pollMs: number;
+      readonly templates: Required<typeof ReviewTemplates.Type>;
+    };
   }
 >()("agent-checks/Config") {
   static readonly layer = Layer.effect(
@@ -245,6 +268,7 @@ export class RuntimeConfig extends Context.Service<
 
       const templates = settings.indicatorTemplates;
       const lintTemplates = settings.lint?.templates;
+      const reviewTemplates = settings.reviews?.templates;
 
       return RuntimeConfig.of({
         socket: env.HERDR_SOCKET_PATH,
@@ -281,6 +305,16 @@ export class RuntimeConfig extends Context.Service<
             running: lintTemplates?.running ?? "\uF4B1 ↻",
             clean: lintTemplates?.clean ?? "\uF4B1 ✓",
             unavailable: lintTemplates?.unavailable ?? "\uF4B1 ⚠",
+          },
+        },
+        reviews: {
+          enabled: settings.reviews?.enabled ?? true,
+          pollMs: (settings.reviews?.pollSeconds ?? 60) * 1000,
+          templates: {
+            open: reviewTemplates?.open ?? "PR !{count}",
+            requested: reviewTemplates?.requested ?? "PR ↻",
+            clear: reviewTemplates?.clear ?? "PR ✓",
+            unavailable: reviewTemplates?.unavailable ?? "PR ⚠",
           },
         },
       });

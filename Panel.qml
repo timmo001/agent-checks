@@ -54,6 +54,9 @@ Panel {
   readonly property var failedRuns: runs.filter(function(run) { return service.attention(run.conclusion) })
   readonly property string ciTone: service && checkout ? service.ciTone(ci, checkout.ciError) : "none"
   readonly property string lintTone: service ? service.lintTone(lint) : "none"
+  readonly property var reviews: checkout ? checkout.reviews : null
+  readonly property string reviewsTone: service && checkout ? service.reviewsTone(reviews, checkout.reviewsError) : "none"
+  readonly property var threads: reviews ? reviews.threads : []
   readonly property var lintChecks: lint && lint.result ? lint.result.checks : []
   readonly property var failingChecks: lintChecks.filter(function(check) { return check.status === "failed" || check.status === "timedOut" })
   readonly property bool ciReady: ciReport !== null && ciReportKey === failedRunsKey
@@ -63,12 +66,14 @@ Panel {
 
   readonly property var ciSection: sectionState("ci")
   readonly property var lintSection: sectionState("lint")
+  readonly property var reviewsSection: sectionState("reviews")
   readonly property var launcherRows: launchers.map(function(launcher) {
     return { key: "launcher:" + launcher.id, action: "launcher", launcher: launcher.id, primaryText: launcher.label, icon: "󱚣" }
   })
   readonly property var sections: [
     { kind: "ci", title: "CI", rows: sectionRows("ci") },
-    { kind: "lint", title: "Lint", rows: sectionRows("lint") }
+    { kind: "lint", title: "Lint", rows: sectionRows("lint") },
+    { kind: "reviews", title: "Reviews", rows: sectionRows("reviews") }
   ]
   readonly property var panelRows: view === "agent"
     ? [backRow()].concat(launcherRows)
@@ -81,14 +86,28 @@ Panel {
       return { status: service.errorText ? "error" : "loading", message: service.errorText || "Finding the Herdr plugin", retry: "" }
     if (statusError) return { status: "error", message: statusError, retry: "status" }
     if (!checkout) return { status: "loading", message: "Reading " + cwd, retry: "" }
-    return kind === "ci" ? ciState() : lintState()
+    if (kind === "ci") return ciState()
+    return kind === "lint" ? lintState() : reviewsState()
+  }
+
+  function sectionFor(kind) {
+    if (kind === "ci") return ciSection
+    return kind === "lint" ? lintSection : reviewsSection
+  }
+
+  function toneFor(kind) {
+    if (kind === "ci") return ciTone
+    return kind === "lint" ? lintTone : reviewsTone
+  }
+
+  function watcherState(what) {
+    return { status: "stale", message: !checkout.watched
+      ? "The watcher is not following this checkout. Start it to see " + what + "."
+      : "The watcher last updated " + relative(service.updated) + ".", retry: "watcher" }
   }
 
   function ciState() {
-    if (!checkout.watched || service.stale)
-      return { status: "stale", message: !checkout.watched
-        ? "The watcher is not following this checkout. Start it to see CI."
-        : "The watcher last updated " + relative(service.updated) + ".", retry: "watcher" }
+    if (!checkout.watched || service.stale) return watcherState("CI")
     if (!checkout.target) return { status: "empty", message: "Not on a branch with a GitHub remote", retry: "" }
     if (checkout.ciError) return { status: "error", message: checkout.ciError, retry: "status" }
     if (checkout.ciPending) return { status: "loading", message: "Waiting for GitHub", retry: "" }
@@ -117,11 +136,30 @@ Panel {
     return { status: "loaded", message: "", retry: "" }
   }
 
+  function reviewsState() {
+    if (!checkout.watched || service.stale) return watcherState("reviews")
+    if (!checkout.target) return { status: "empty", message: "Not on a branch with a GitHub remote", retry: "" }
+    if (checkout.reviewsError) return { status: "error", message: checkout.reviewsError, retry: "status" }
+    if (checkout.reviewsPending) return { status: "loading", message: "Waiting for GitHub", retry: "" }
+    if (!reviews) return { status: "empty", message: checkout.target.branch + " has no open pull request", retry: "" }
+    if (reviews.state === "open") return { status: "loaded", message: "", retry: "" }
+    if (reviews.state === "requested")
+      return { status: "running", message: "Review requested from " + reviews.botRequests.join(", "), retry: "" }
+    return { status: "empty", message: "No open review threads on #" + reviews.number, retry: "" }
+  }
+
   function sectionRows(kind) {
     if (kind === "ci")
       return runs.map(function(run) {
         return { key: "run:" + run.id, run: run, primaryText: run.name || run.display_title, secondaryText: runText(run) }
       }).concat(ciTone === "failed" ? actionRows("ci") : [])
+    if (kind === "reviews")
+      return threads.map(function(thread) {
+        var first = thread.comments.length ? thread.comments[0] : null
+        return { key: "thread:" + thread.id, thread: thread, primaryText: thread.location,
+          secondaryText: first ? first.author + ": " + first.body.replace(/\s+/g, " ") : "" }
+      }).concat(reviewsTone === "failed" ? actionRows("reviews") : [])
+        .concat(reviews ? [actionRow("reviews", "pr", "Open #" + reviews.number + " in the browser", "󰖟")] : [])
     return lintChecks.map(function(check) {
       return { key: "check:" + check.name, check: check, primaryText: check.name, secondaryText: checkText(check) }
     }).concat(lintTone === "failed" ? actionRows("lint") : [])
@@ -149,9 +187,10 @@ Panel {
   }
 
   function summaryText(kind) {
-    var state = kind === "ci" ? ciSection : lintSection
+    var state = sectionFor(kind)
     if (state.status !== "loaded") return state.message
     if (kind === "ci") return failedRuns.length + " failed run" + (failedRuns.length === 1 ? "" : "s") + previousText()
+    if (kind === "reviews") return threads.length + " open thread" + (threads.length === 1 ? "" : "s") + " on #" + reviews.number
     var failed = failingChecks.length
     return failed + " failing check" + (failed === 1 ? "" : "s")
   }
@@ -166,15 +205,15 @@ Panel {
   function overallTone() {
     var tones = ["failed", "running", "ok"]
     for (var i = 0; i < tones.length; i++)
-      if (ciTone === tones[i] || lintTone === tones[i]) return tones[i]
+      if (ciTone === tones[i] || lintTone === tones[i] || reviewsTone === tones[i]) return tones[i]
     return "none"
   }
 
   function stateColor(kind) {
-    var status = (kind === "ci" ? ciSection : lintSection).status
+    var status = sectionFor(kind).status
     if (status === "error") return urgentColor
     if (status === "stale" || status === "running") return warningColor
-    if (status === "loaded") return toneColor(kind === "ci" ? ciTone : lintTone)
+    if (status === "loaded") return toneColor(toneFor(kind))
     return mutedColor
   }
 
@@ -320,6 +359,7 @@ Panel {
     else if (action === "watcher") { service.startWatcher(); refreshSoon.restart() }
     else if (action === "ci") { ciReportKey = ""; ciReport = null; loadCiReport() }
     else if (action === "lint") runLint(true)
+    else if (action === "reviews") refreshStatus()
   }
 
   function refresh() {
@@ -338,7 +378,9 @@ Panel {
   }
 
   function promptFor(kind) {
-    return kind === "ci" ? (ciReady ? ciReport.prompt : "") : (checkout ? checkout.lintPrompt || "" : "")
+    if (kind === "ci") return ciReady ? ciReport.prompt : ""
+    if (!checkout) return ""
+    return (kind === "lint" ? checkout.lintPrompt : checkout.reviewsPrompt) || ""
   }
 
   function copy(kind) {
@@ -374,6 +416,7 @@ Panel {
     else if (entry.action === "launch") showAgentPicker(entry.kind, false)
     else if (entry.action === "worktree") showAgentPicker("ci", true)
     else if (entry.action === "browser") runAction(["browser"], false, entry.key)
+    else if (entry.action === "pr" && reviews) Qt.openUrlExternally(reviews.url)
     else if (entry.action === "launcher") launch(entry)
   }
 
@@ -391,7 +434,7 @@ Panel {
     panelFlick.contentY = 0
   }
 
-  // `request` is { mode, cwd, pane }; mode ci or lint scrolls to that
+  // `request` is { mode, cwd, pane }; mode ci, lint or reviews scrolls to that
   // section. Empty values fall back to the focused pane.
   function open(request) {
     var nextCwd = request.cwd || (service ? service.repositoryPath : "")
@@ -630,7 +673,7 @@ Panel {
               id: sectionColumn
               required property var modelData
               readonly property alias heading: sectionHeading
-              readonly property var info: modelData.kind === "ci" ? root.ciSection : root.lintSection
+              readonly property var info: root.sectionFor(modelData.kind)
               width: contentColumn.width
               spacing: Style.space(4)
 
@@ -646,7 +689,8 @@ Panel {
                 fontFamily: root.contentFontFamily
                 refreshable: true
                 refreshing: statusProcess.running
-                  || (sectionColumn.modelData.kind === "ci" ? ciProcess.running : lintProcess.running)
+                  || (sectionColumn.modelData.kind === "ci" && ciProcess.running)
+                  || (sectionColumn.modelData.kind === "lint" && lintProcess.running)
                 // The section's state sits in the heading; the refresh button retries whatever it needs.
                 trailingControl: headingState
                 onRefreshRequested: root.retry(sectionColumn.info.retry || sectionColumn.modelData.kind)
@@ -707,7 +751,7 @@ Panel {
               readonly property bool expanded: root.expandedKey === modelData.key
               readonly property var report: modelData.run ? root.reportFor(modelData.run) : null
               readonly property string tone: modelData.run ? root.runTone(modelData.run)
-                : (modelData.check ? root.checkTone(modelData.check) : "")
+                : (modelData.check ? root.checkTone(modelData.check) : (modelData.thread ? "failed" : ""))
               width: contentColumn.width
               implicitHeight: rowColumn.implicitHeight + Style.space(12)
               hasCursor: filterController.cursorIndex === filterController.indexForKey(modelData.key)
@@ -819,6 +863,15 @@ Panel {
                     }
 
                     PanelActionButton {
+                      visible: !!rowSurface.modelData.thread
+                      iconText: "󰖟"
+                      tooltipText: "Open the thread in the browser"
+                      foreground: root.contentForeground
+                      fontFamily: root.contentFontFamily
+                      onClicked: Qt.openUrlExternally(rowSurface.modelData.thread.url)
+                    }
+
+                    PanelActionButton {
                       visible: !!rowSurface.modelData.run && rowSurface.tone === "failed"
                       enabled: rowSurface.report !== null
                       iconText: "󱚣"
@@ -865,7 +918,11 @@ Panel {
                     width: parent.width - Style.space(32)
                     text: rowSurface.modelData.check
                       ? (rowSurface.modelData.check.status === "timedOut" ? "Timed out" : rowSurface.modelData.check.output)
-                      : (rowSurface.report ? (rowSurface.report.logs || "Saved to " + rowSurface.report.logFile) : "")
+                      : rowSurface.modelData.thread
+                        ? rowSurface.modelData.thread.comments.map(function(comment) {
+                            return comment.author + ":\n" + comment.body
+                          }).join("\n\n")
+                        : (rowSurface.report ? (rowSurface.report.logs || "Saved to " + rowSurface.report.logFile) : "")
                     foreground: root.contentForeground
                   }
                 }

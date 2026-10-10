@@ -1,6 +1,7 @@
 import type { RuntimeConfig } from "./config";
 import { type LintState, failing } from "./lint";
 import { attention, type Status } from "./services/github";
+import type { Reviews } from "./services/reviews";
 
 export function ciIndicator(
   status: Status | null,
@@ -73,6 +74,25 @@ export function lintIndicator(
       return templates.timedOut;
     case "error":
       return templates.unavailable;
+    default:
+      return null;
+  }
+}
+
+export function reviewsIndicator(
+  reviews: Reviews | null,
+  templates: RuntimeConfig["Service"]["reviews"]["templates"],
+) {
+  switch (reviews?.state) {
+    case "open":
+      return templates.open.replaceAll(
+        "{count}",
+        String(reviews.threads.length),
+      );
+    case "requested":
+      return templates.requested;
+    case "clear":
+      return templates.clear;
     default:
       return null;
   }
