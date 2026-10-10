@@ -32,7 +32,7 @@ Failed, timed-out, startup-failed and action-required runs need attention;
 cancelled, neutral and skipped runs do not. Reruns replace the previous attempt.
 Local unpushed commits do not hide the pushed commit's failures.
 
-Lint runs `dot agent-lint --json` by default, when a workspace is first found
+Lint runs `dot agent lint --json` by default, when a workspace is first found
 and whenever an agent in it goes from working to idle or done. Results are
 cached by working-tree fingerprint, so an unchanged tree is not linted again.
 Only one lint runs at a time.
@@ -60,7 +60,7 @@ For the Omarchy side, deploy the repository as the `timmo.agent-checks` plugin
 in `~/.config/omarchy/plugins/`. `FilterablePanel`, `OutputView`,
 `PanelFlickable`, `PanelHeader` and `SectionHeading` are copies of the shared
 dotfiles panel components. Change them in dotfiles and run
-`dot omarchy-plugin sync-components`, rather than editing them here.
+`dot omarchy plugin sync components`, rather than editing them here.
 
 Add the tokens to Herdr's sidebar and bind the actions:
 
@@ -164,7 +164,7 @@ Create `config.json` in the directory printed by
   },
   "lint": {
     "enabled": true,
-    "command": ["dot", "agent-lint", "--json"],
+    "command": ["dot", "agent", "lint", "--json"],
     "timeoutSeconds": 600,
     "templates": { "failure": "\uF4B1 !{count}" }
   },
@@ -186,7 +186,7 @@ Create `config.json` in the directory printed by
   wrapped indicator and `{distance}` reads like `2 commits ago`.
 - `lint.templates` keys are `failure`, `timedOut`, `running`, `clean` and
   `unavailable`. `{count}` is the number of failed checks. The lint command must
-  print `dot agent-lint --json` output, and accept its `--all` and `--only`
+  print `dot agent lint --json` output, and accept its `--all` and `--only`
   flags for the panel's run buttons.
 - `launchers` replaces the built-in agents: OpenCode, Pi, Cursor Agent, Claude
   Code, Codex, GitHub Copilot, OMP, Devin, Droid, Kimi, Kilo, Hermes, Qoder CLI,

@@ -273,7 +273,7 @@ export class RuntimeConfig extends Context.Service<
         launchers,
         lint: {
           enabled: settings.lint?.enabled ?? true,
-          command: settings.lint?.command ?? ["dot", "agent-lint", "--json"],
+          command: settings.lint?.command ?? ["dot", "agent", "lint", "--json"],
           timeoutMs: (settings.lint?.timeoutSeconds ?? 600) * 1000,
           templates: {
             failure: lintTemplates?.failure ?? "\uF4B1 !{count}",

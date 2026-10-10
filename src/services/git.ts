@@ -44,7 +44,7 @@ export const gitRoot = Effect.fn("Git.root")(function* (cwd: string) {
 });
 
 /**
- * Identify the working tree `dot agent-lint` would lint, without touching the
+ * Identify the working tree `dot agent lint` would lint, without touching the
  * index or the object database: HEAD plus the content hash of every changed
  * and untracked path, read the same way as dot's changedFiles.
  */

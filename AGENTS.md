@@ -11,7 +11,7 @@
   files are the Omarchy shell plugin.
 - `FilterablePanel`, `OutputView`, `PanelFlickable`, `PanelHeader`
   and `SectionHeading` are copies of the shared dotfiles panel components. Change
-  them in dotfiles and run `dot omarchy-plugin sync-components`; don't edit the
+  them in dotfiles and run `dot omarchy plugin sync components`; don't edit the
   copies here.
 - `dist/` is generated Bun-targeted module output and stays untracked.
 - The package is private; distribution is through the GitHub repository.

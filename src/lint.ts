@@ -49,7 +49,7 @@ export const LintState = Schema.Struct({
 
 export type LintState = typeof LintState.Type;
 
-// Report printed by `dot agent-lint --json`.
+// Report printed by `dot agent lint --json`.
 const Report = Schema.Struct({
   configured: Schema.Boolean,
   files: Schema.Array(Schema.String),
