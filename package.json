@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "4.0.3",
-    "@timmo001/effect-gh": "0.5.1",
+    "@timmo001/effect-gh": "0.5.2",
     "@timmo001/effect-herdr": "0.9.0-timmo001.0",
     "effect": "4.0.2",
     "proper-lockfile": "4.1.2"
