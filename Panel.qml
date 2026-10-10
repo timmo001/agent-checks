@@ -71,13 +71,51 @@ Panel {
     return { key: "launcher:" + launcher.id, action: "launcher", launcher: launcher.id, primaryText: launcher.label, icon: "󱚣" }
   })
   readonly property var sections: [
-    { kind: "ci", title: "CI", rows: sectionRows("ci") },
-    { kind: "lint", title: "Lint", rows: sectionRows("lint") },
-    { kind: "reviews", title: "Reviews", rows: sectionRows("reviews") }
+    { kind: "ci", title: "CI", icon: "", rows: sectionRows("ci") },
+    { kind: "lint", title: "Lint", icon: "", rows: sectionRows("lint") },
+    { kind: "reviews", title: "Reviews", icon: "", rows: sectionRows("reviews") }
   ]
+  // Sections the user collapsed; opening the panel on a section expands it.
+  property var collapsedSections: ({})
+  // Each heading is a toggle row, so the keyboard reaches it before its rows.
   readonly property var panelRows: view === "agent"
     ? [backRow()].concat(launcherRows)
-    : sections.reduce(function(rows, section) { return rows.concat(section.rows) }, [])
+    : sections.reduce(function(rows, section) {
+        return rows.concat([toggleRow(section.kind)], section.rows.map(function(row) {
+          return Object.assign({ section: section.kind }, row)
+        }))
+      }, [])
+  // Rows in collapsed sections leave keyboard navigation.
+  readonly property var navigationRows: panelRows.filter(function(row) {
+    return row.kind === "toggle" || !row.section || sectionExpanded(row.section)
+  })
+
+  function toggleRow(kind) {
+    return { key: "toggle:" + kind, kind: "toggle", section: kind }
+  }
+
+  function sectionExpanded(kind) {
+    return collapsedSections[kind] !== true
+  }
+
+  function toggleSection(kind) {
+    var next = Object.assign({}, collapsedSections)
+    next[kind] = sectionExpanded(kind)
+    collapsedSections = next
+  }
+
+  function expandSection(kind) {
+    if (sectionExpanded(kind)) return
+    toggleSection(kind)
+  }
+
+  // reset() lands on the first heading, so move on to the first row.
+  function selectFirstRow() {
+    var index = filterController.navigationEntries.findIndex(function(entry) {
+      return entry.navigation !== true && entry.kind !== "toggle"
+    })
+    if (index >= 0) filterController.selectIndex(index)
+  }
 
   // Each section's status, message and the retry action its refresh button runs.
   function sectionState(kind) {
@@ -422,6 +460,7 @@ Panel {
 
   function activateEntry(entry) {
     if (!entry) return
+    if (entry.kind === "toggle") { toggleSection(entry.section); return }
     if (entry.action) { activateAction(entry); return }
     expandedKey = expandedKey === entry.key ? "" : entry.key
     Qt.callLater(scrollCursorIntoView)
@@ -431,6 +470,7 @@ Panel {
     view = next
     actionError = ""
     filterController.reset()
+    if (next === "checks") Qt.callLater(selectFirstRow)
     panelFlick.contentY = 0
   }
 
@@ -461,12 +501,14 @@ Panel {
   function close() { controller.hide() }
   function toggle() { if (opened) close(); else open({ mode: "overview" }) }
 
-  // Selects the section's first row and scrolls its heading to the top.
+  // Expands the section, selects its first row, or its heading when it has
+  // none, and scrolls the heading to the top.
   function focusSection(kind) {
     var index = sections.findIndex(function(section) { return section.kind === kind })
     if (index < 0) return
-    if (sections[index].rows.length > 0)
-      filterController.cursorIndex = filterController.indexForKey(sections[index].rows[0].key)
+    expandSection(kind)
+    filterController.selectIndex(filterController.indexForKey(sections[index].rows.length > 0
+      ? sections[index].rows[0].key : "toggle:" + kind))
     var item = sectionRepeater.itemAt(index)
     if (item)
       panelFlick.contentY = Math.min(item.mapToItem(contentColumn, 0, 0).y,
@@ -477,6 +519,11 @@ Panel {
     if (!entry) return null
     if (entry.navigation === true) return panelHeader
     if (view === "agent") return launcherRepeater.itemAt(launcherRows.indexOf(entry))
+    if (entry.kind === "toggle") {
+      var headingIndex = sections.findIndex(function(section) { return section.kind === entry.section })
+      var headingItem = sectionRepeater.itemAt(headingIndex)
+      return headingItem ? headingItem.heading : null
+    }
     for (var i = 0; i < sections.length; i++) {
       var sectionItem = sectionRepeater.itemAt(i)
       if (!sectionItem) continue
@@ -605,6 +652,7 @@ Panel {
       id: filterController
       anchors.fill: parent
       model: root.panelRows
+      navigationModel: root.navigationRows
       bypassFilter: true
       backOnEmptyFilter: root.view === "agent"
       onActivateRequested: function(entry) { root.activateEntry(entry) }
@@ -685,9 +733,15 @@ Panel {
                 id: sectionHeading
                 width: parent.width
                 title: sectionColumn.modelData.title
+                icon: sectionColumn.modelData.icon
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 refreshable: true
+                collapsible: true
+                expanded: root.sectionExpanded(sectionColumn.modelData.kind)
+                toggleHasCursor: filterController.cursorIndex === filterController.indexForKey("toggle:" + sectionColumn.modelData.kind)
+                onToggleHovered: filterController.cursorIndex = filterController.indexForKey("toggle:" + sectionColumn.modelData.kind)
+                onToggleRequested: root.toggleSection(sectionColumn.modelData.kind)
                 refreshing: statusProcess.running
                   || (sectionColumn.modelData.kind === "ci" && ciProcess.running)
                   || (sectionColumn.modelData.kind === "lint" && lintProcess.running)
@@ -730,6 +784,7 @@ Panel {
               }
 
               Column {
+                visible: root.sectionExpanded(sectionColumn.modelData.kind)
                 width: parent.width
                 spacing: Style.space(2)
 
