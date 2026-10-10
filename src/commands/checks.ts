@@ -1,4 +1,4 @@
-import { Gh } from "@timmo001/effect-gh";
+import { Repository, Workflow } from "@timmo001/effect-gh";
 import { HerdrSdk, PaneId } from "@timmo001/effect-herdr";
 import { Console, Effect, Match, Option, Path, Schema } from "effect";
 import { availableLaunchers, launchAgent, pasteDraft } from "../actions/agent";
@@ -279,7 +279,6 @@ export const browser = Effect.fn("Checks.browser")(function* (options: {
   readonly run: Option.Option<number>;
 }) {
   const github = yield* GitHub;
-  const gh = yield* Gh;
   const target = yield* github.discover(yield* checkoutRoot(options.cwd));
 
   if (!target)
@@ -289,27 +288,25 @@ export const browser = Effect.fn("Checks.browser")(function* (options: {
 
   const repo = `github.com/${target.repository}`;
 
-  yield* gh
-    .execute(
-      Option.isSome(options.run)
-        ? ["run", "view", String(options.run.value), "--repo", repo, "--web"]
-        : ["browse", "--actions", "--repo", repo],
-    )
-    .pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProcessError({
-            command: "gh",
-            message: Match.value(cause).pipe(
-              Match.tag(
-                "GhCommandError",
-                (error) => error.stderr.trim() || `gh exited ${error.exitCode}`,
-              ),
-              Match.orElse(String),
+  yield* (
+    Option.isSome(options.run)
+      ? Workflow.open({ repo, runId: options.run.value })
+      : Repository.browse({ repo, section: "actions" })
+  ).pipe(
+    Effect.mapError(
+      (cause) =>
+        new ProcessError({
+          command: "gh",
+          message: Match.value(cause).pipe(
+            Match.tag(
+              "GhCommandError",
+              (error) => error.stderr.trim() || `gh exited ${error.exitCode}`,
             ),
-          }),
-      ),
-    );
+            Match.orElse(String),
+          ),
+        }),
+    ),
+  );
 });
 
 /** Open the Omarchy panel for the pane a Herdr action came from. */

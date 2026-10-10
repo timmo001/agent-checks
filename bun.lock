@@ -6,7 +6,7 @@
       "name": "herdr-workflow-watch",
       "dependencies": {
         "@effect/platform-node": "4.0.3",
-        "@timmo001/effect-gh": "0.4.0",
+        "@timmo001/effect-gh": "0.5.1",
         "@timmo001/effect-herdr": "0.9.0-timmo001.0",
         "effect": "4.0.2",
         "proper-lockfile": "4.1.2",
@@ -14,7 +14,7 @@
       "devDependencies": {
         "@effect/tsgo": "0.51.1",
         "@oxlint/plugins": "1.87.0",
-        "@timmo001/oxlint-rules": "0.5.0",
+        "@timmo001/oxlint-rules": "0.6.0",
         "@types/bun": "1.4.2",
         "@types/proper-lockfile": "4.1.4",
         "oxlint": "1.87.0",
@@ -114,11 +114,11 @@
 
     "@redis/time-series": ["@redis/time-series@6.3.0", "", { "peerDependencies": { "@redis/client": "^6.3.0" } }, "sha512-+fJOB8mN1z5WRakCJNh5lVdz1KqvHGSOistsKeitD24QsCtPwyRQXWC0iq6T/i/ubLE/YcguZqPm8F598MKk4A=="],
 
-    "@timmo001/effect-gh": ["@timmo001/effect-gh@0.4.0", "", { "peerDependencies": { "effect": "4.0.2" } }, "sha512-3P6CUR/gcuU/Kg3jhaRTz9xQSTqwONFvLvuLFbR1aTHn9NfENOewhMhBqUBSlzuWZl+CTxePzDLIIsDV4l7aag=="],
+    "@timmo001/effect-gh": ["@timmo001/effect-gh@0.5.1", "", { "peerDependencies": { "effect": "4.0.2" } }, "sha512-oERB7gdi9KdbNbGZHH136IP51vqCTC4/gVX6qKy/SKCK//VmnnK2Nafp30BYqKVRkQtGa8GWDXXfALKvED3eYg=="],
 
     "@timmo001/effect-herdr": ["@timmo001/effect-herdr@0.9.0-timmo001.0", "", { "dependencies": { "@effect/platform-node-shared": "4.0.0", "ajv": "8.20.0", "effect": "4.0.0" } }, "sha512-4wVQbQDjvvB4GNHBzXdCl0A9129DCV0nMJ91jiAcRuTL8DlCqW6vn4gD0SZapCThJq5CooCyfKlYje7jpzixag=="],
 
-    "@timmo001/oxlint-rules": ["@timmo001/oxlint-rules@0.5.0", "", { "peerDependencies": { "@oxlint/plugins": "1.86.0", "oxlint": "1.86.0" }, "bin": { "oxlint-rules": "dist/cli.js" } }, "sha512-5Tm1duCF2fzPRSwFGTOIDoR4qWXQIUtf0dYWt4ApoRbtJTPrPi4OZjdmhglaE/IoEaDSuUFp2Jx08Emmno/o1g=="],
+    "@timmo001/oxlint-rules": ["@timmo001/oxlint-rules@0.6.0", "", { "peerDependencies": { "@oxlint/plugins": "1.87.0", "oxlint": "1.87.0" }, "bin": { "oxlint-rules": "dist/cli.js" } }, "sha512-7afojmnFm6xF47iSMhWD9K941gRbOiqDUZUXoNAXEZo7YpBufLna1e8jPU7ayglB4ueHGoWEXCNLvDyVNSWq3Q=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
