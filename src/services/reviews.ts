@@ -25,8 +25,9 @@ export const ReviewThread = Schema.Struct({
 export type ReviewThread = typeof ReviewThread.Type;
 
 /**
- * Review state of a branch's open pull request: open threads first, then
- * outstanding bot review requests, otherwise clear.
+ * Review state of a branch's open pull request: open threads (including
+ * outstanding change requests) first, then outstanding bot review requests,
+ * otherwise clear.
  */
 export const Reviews = Schema.Struct({
   number: Schema.Int,
@@ -50,6 +51,15 @@ const Output = Schema.fromJsonString(
         title: Schema.String,
         url: Schema.String,
         botRequests: Schema.Array(Schema.String),
+        reviews: Schema.Array(
+          Schema.Struct({
+            id: Schema.String,
+            state: Schema.String,
+            body: Schema.String,
+            url: Schema.String,
+            author: Login,
+          }),
+        ),
         threads: Schema.Array(
           Schema.Struct({
             id: Schema.String,
@@ -139,16 +149,50 @@ export class PullRequestReviews extends Context.Service<
             ];
           });
 
+          // A change request stays outstanding until the same reviewer
+          // approves or it is dismissed; comments don't clear it. Reviews
+          // arrive oldest first, so the last decision per author wins.
+          const decisions = new Map<string, (typeof pr.reviews)[number]>();
+
+          for (const review of pr.reviews)
+            if (
+              ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(
+                review.state,
+              )
+            )
+              decisions.set(review.author?.login ?? "ghost", review);
+
+          const changeRequests = [...decisions].flatMap(([author, review]) =>
+            review.state === "CHANGES_REQUESTED"
+              ? [
+                  {
+                    id: review.id,
+                    location: `Changes requested by ${author}`,
+                    url: review.url,
+                    comments: [
+                      {
+                        author,
+                        body: review.body,
+                        url: review.url,
+                      },
+                    ],
+                  },
+                ]
+              : [],
+          );
+
+          const open = [...changeRequests, ...threads];
+
           return {
             number: pr.number,
             title: pr.title,
             url: pr.url,
-            state: threads.length
+            state: open.length
               ? ("open" as const)
               : pr.botRequests.length
                 ? ("requested" as const)
                 : ("clear" as const),
-            threads,
+            threads: open,
             botRequests: pr.botRequests,
           };
         },

@@ -50,7 +50,8 @@ Only one lint runs at a time.
 
 Reviews come from `dot pr reviews --json` for the open pull request from the
 followed branch, polled every minute. A thread is open when it is neither
-resolved nor minimised.
+resolved nor minimised. A reviewer's change request also counts as an open
+thread until they approve or the review is dismissed.
 
 The watcher also writes `status.json` in its state directory. The Omarchy bar
 widget and panel follow it.
