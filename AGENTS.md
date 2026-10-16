@@ -32,6 +32,11 @@ bun dist/index.js --help
 CI runs `bun install --frozen-lockfile` first. Check and build tasks must not
 install dependencies.
 
+`tooling.yml` records the Herdr release the code was last reviewed against; the
+Tooling drift workflow opens a draft review pull request when it moves. After
+the review, move it with `mise run tooling:update <repo> <tag>`, never by hand;
+the `tooling-drift` skill has the steps.
+
 ## Effect conventions
 
 - Use Effect v4 APIs and keep `effect` and `@effect/platform-node` aligned.

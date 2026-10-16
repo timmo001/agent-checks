@@ -1,0 +1,15 @@
+---
+# Tool releases agent-checks was last reviewed against. The tooling-drift tool
+# (mise run tooling:status / tooling:publish) compares each with the latest
+# release and opens a draft pull request for review when it moves; its README
+# documents this file. The Omarchy panel is reviewed against Omarchy releases
+# through the dotfiles.
+assignee: timmo001
+dispatch:
+  - ci.yml
+  - tests.yml
+  - lint-general.yml
+tools:
+  - repo: herdrdev/herdr
+    reviewed: v0.9.5
+    review: Check the code that drives Herdr through @timmo001/effect-herdr (src/services/herdr.ts, the watch and checks commands in src/commands, src/actions/agent.ts and the notifications in src/errors.ts) and the plugin manifest in herdr-plugin.toml against the release notes. A protocol change may need an effect-herdr release first.
