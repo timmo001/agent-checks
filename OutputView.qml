@@ -12,6 +12,8 @@ Rectangle {
   property real maxHeight: Style.space(240)
   property color foreground: Commons.Color.foreground
   property string fontFamily: "monospace"
+  // Keeps the newest output in view as text arrives, such as while following a running command.
+  property bool followTail: false
 
   width: parent ? parent.width : implicitWidth
   implicitHeight: Math.min(maxHeight, output.implicitHeight + Style.space(12))
@@ -29,6 +31,7 @@ Rectangle {
     boundsBehavior: Flickable.StopAtBounds
     interactive: contentHeight > height
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+    onContentHeightChanged: if (root.followTail) contentY = Math.max(0, contentHeight - height)
 
     TextEdit {
       id: output
