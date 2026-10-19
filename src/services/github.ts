@@ -1,4 +1,10 @@
-import { Api, Gh, Workflow } from "@timmo001/effect-gh";
+import {
+  Api,
+  Gh,
+  GhCommandError,
+  GhDecodeError,
+  Workflow,
+} from "@timmo001/effect-gh";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Process } from "./process";
 
@@ -8,6 +14,21 @@ export class GitHubError extends Schema.TaggedError<GitHubError>()(
     message: Schema.String,
   },
 ) {}
+
+// The gh errors carry their detail in fields, so String() alone gives only
+// the tag.
+function gitHubError(cause: unknown) {
+  if (cause instanceof GitHubError) return cause;
+
+  return new GitHubError({
+    message:
+      cause instanceof GhCommandError
+        ? `gh exited ${cause.exitCode}: ${cause.stderr.trim()}`
+        : cause instanceof GhDecodeError
+          ? `gh output was not the expected JSON: ${String(cause.cause)}`
+          : String(cause),
+  });
+}
 
 export const Target = Schema.Struct({
   root: Schema.String,
@@ -346,11 +367,7 @@ export class GitHub extends Context.Service<
         (effect) =>
           effect.pipe(
             Effect.provideService(Gh, gh),
-            Effect.mapError((cause) =>
-              cause instanceof GitHubError
-                ? cause
-                : new GitHubError({ message: String(cause) }),
-            ),
+            Effect.mapError(gitHubError),
           ),
       );
 
@@ -392,9 +409,7 @@ export class GitHub extends Context.Service<
         (effect) =>
           effect.pipe(
             Effect.provideService(Gh, gh),
-            Effect.mapError(
-              (cause) => new GitHubError({ message: String(cause) }),
-            ),
+            Effect.mapError(gitHubError),
           ),
       );
 
@@ -419,9 +434,7 @@ export class GitHub extends Context.Service<
         (effect) =>
           effect.pipe(
             Effect.provideService(Gh, gh),
-            Effect.mapError(
-              (cause) => new GitHubError({ message: String(cause) }),
-            ),
+            Effect.mapError(gitHubError),
           ),
       );
 
