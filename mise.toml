@@ -7,7 +7,7 @@ uv = "0.13.6"
 "npm:markdownlint-cli2" = "0.24.0"
 "pipx:yamllint" = "1.38.0"
 # Approved for aube's package-age check while the package is under 30 days old.
-"npm:@timmo001/tooling-drift" = { version = "0.1.5", allow_low_downloads = true }
+"npm:@timmo001/tooling-drift" = { version = "0.1.7", allow_low_downloads = true }
 python = "3.14.10"
 
 [tasks.install]
