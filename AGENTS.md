@@ -10,9 +10,10 @@
 - `herdr-plugin.toml` is the Herdr plugin; `manifest.json` and the root QML
   files are the Omarchy shell plugin.
 - `FilterablePanel`, `OutputView`, `PanelFlickable`, `PanelHeader`
-  and `SectionHeading` are copies of the shared dotfiles panel components. Change
-  them in dotfiles and run `dot omarchy plugin sync components`; don't edit the
-  copies here.
+  and `SectionHeading` are copies of Groundwork's shared panel components,
+  listed in `sync.json` and `sync.lock.json`. An edit here travels back to
+  Groundwork and out to the other plugins on its next `mise run sync`, so keep
+  changes general rather than specific to this plugin.
 - `dist/` is generated Bun-targeted module output and stays untracked.
 - The package is private; distribution is through the GitHub repository.
 

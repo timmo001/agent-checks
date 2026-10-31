@@ -76,9 +76,9 @@ or configuration changes.
 
 For the Omarchy side, deploy the repository as the `timmo.agent-checks` plugin
 in `~/.config/omarchy/plugins/`. `FilterablePanel`, `OutputView`,
-`PanelFlickable`, `PanelHeader` and `SectionHeading` are copies of the shared
-dotfiles panel components. Change them in dotfiles and run
-`dot omarchy plugin sync components`, rather than editing them here.
+`PanelFlickable`, `PanelHeader` and `SectionHeading` are copies of
+[Groundwork's](https://github.com/timmo001/groundwork) shared panel components,
+kept in step by its sync (`sync.json` and `sync.lock.json` here).
 
 Add the tokens to Herdr's sidebar and bind the actions:
 
