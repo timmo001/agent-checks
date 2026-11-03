@@ -100,15 +100,6 @@ url = "https://nodejs.org/dist/v26.13.0/node-v26.13.0-win-x64.zip"
 checksum = "sha256:dcc60d59a0746999f99064a01c020445d54d84228c691cdbf25b49ac3b59150a"
 url = "https://nodejs.org/dist/v26.13.0/node-v26.13.0-win-x64.zip"
 
-[[tools."npm:@timmo001/tooling-drift"]]
-version = "0.1.7"
-aube = { path = ".mise/locks/npm-timmo001-tooling-drift/0.1.7~556c7cb7", digest = "sha256:1e7e8e5e07444b9f234367181a3923cd40584bfbf40e7950c0c0c1ae3bcae4e0" }
-backend = "npm:@timmo001/tooling-drift"
-specifiers = ["0.1.7"]
-
-[tools."npm:@timmo001/tooling-drift".options]
-allow_low_downloads = "true"
-
 [[tools."npm:markdownlint-cli2"]]
 version = "0.24.0"
 aube = { path = ".mise/locks/npm-markdownlint-cli2/0.24.0", digest = "sha256:b38be5102270e6a898ac4ecc1dbe772e511f6dd4f1000dc6c6df8a992cecc761" }

@@ -33,10 +33,10 @@ bun dist/index.js --help
 CI runs `bun install --frozen-lockfile` first. Check and build tasks must not
 install dependencies.
 
-`tooling.yml` records the Herdr release the code was last reviewed against; the
-Tooling drift workflow opens a draft review pull request when it moves. After
-the review, move it with `mise run tooling:update <repo> <tag>`, never by hand;
-the `tooling-drift` skill has the steps.
+`tooling.yml` records the Herdr release the code was last reviewed against.
+Upkeep's [`drift` job](https://upkeep.timmo.dev/running#drift) checks it for
+newer releases. Record a review by setting `reviewed` in `tooling.yml` and
+pushing.
 
 ## Effect conventions
 
