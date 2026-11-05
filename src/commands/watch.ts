@@ -59,18 +59,20 @@ export const start = Effect.gen(function* () {
 });
 
 type CachedTarget = {
-  readonly next: number;
+  readonly polled: number;
   readonly status: Status | null;
   readonly error: string | null;
 };
 
 type CachedReviews = {
-  readonly next: number;
+  readonly polled: number;
   readonly reviews: Reviews | null;
   readonly error: string | null;
 };
 
 const activePollMs = 15_000;
+
+const rateLimitedMessage = (message: string) => /rate limit/i.test(message);
 
 function unfinished(status: Status | null) {
   return (status?.previous?.runs ?? status?.runs)?.some(
@@ -280,7 +282,12 @@ const runWatcher = Effect.gen(function* () {
           );
         workspaces.set(workspace.id, key);
 
-        return { id: workspace.id, ...found, error };
+        return {
+          id: workspace.id,
+          focused: workspace.focused,
+          ...found,
+          error,
+        };
       }),
       { concurrency: config.concurrency },
     );
@@ -333,7 +340,8 @@ const runWatcher = Effect.gen(function* () {
 
   let discovery: Effect.Success<typeof discover> | undefined;
   let nextDiscovery = 0;
-  let nextPoll = 0;
+  // GitHub polls wait here once a rate limit is spent.
+  let pausedUntil = 0;
   const paneCwds = new Map<string, string | undefined>();
 
   // New workspaces, focus and directory changes would otherwise wait for the
@@ -342,6 +350,7 @@ const runWatcher = Effect.gen(function* () {
     .subscribe([
       { type: "workspace.created" },
       { type: "workspace.closed" },
+      { type: "workspace.focused" },
       { type: "worktree.opened" },
       { type: "tab.focused" },
       { type: "pane.created" },
@@ -383,91 +392,142 @@ const runWatcher = Effect.gen(function* () {
     }
 
     const { discovered, targets } = discovery;
-    yield* Effect.forEach(
-      [...targets]
-        .sort(
-          ([left], [right]) =>
-            (cached.get(left)?.next ?? 0) - (cached.get(right)?.next ?? 0),
-        )
-        .slice(0, 1),
-      Effect.fn("Watch.poll")(function* ([key, target]) {
-        const now = yield* Clock.currentTimeMillis;
-        const previous = cached.get(key);
 
-        // Targets without a first result skip the stagger so new workspaces show promptly.
-        if (previous && (now < nextPoll || now < previous.next)) return;
-        yield* Effect.forEach(
-          discovered.filter(
-            (item) => item.target && targetKey(item.target) === key,
-          ),
-          (item) =>
-            metadata(item.id, {
-              [ciToken]: config.indicatorTemplates.loading,
-            }),
-          { concurrency: config.concurrency, discard: true },
-        );
-        const started = yield* Clock.currentTimeMillis;
-
-        const result = yield* github
-          .status(target, config.showPrevious)
-          .pipe(Effect.result);
-
-        const finished = yield* Clock.currentTimeMillis;
-
-        if (Result.isFailure(result)) {
-          if (previous?.error !== String(result.failure))
-            yield* reportError(
-              Cause.fail(result.failure),
-              "GitHub Actions unavailable",
-            ).pipe(
-              Effect.annotateLogs({
-                repository: target.repository,
-                branch: target.branch,
-              }),
-            );
-          else
-            yield* Effect.logWarning(
-              `${target.repository} ${target.branch}: GitHub polling still unavailable`,
-              result.failure,
-            );
-          cached.set(key, {
-            next: finished + config.retryMs,
-            status: null,
-            error: String(result.failure),
-          });
-        } else {
-          cached.set(key, {
-            next:
-              finished +
-              (unfinished(result.success) ? activePollMs : config.pollMs),
-            status: result.success,
-            error: null,
-          });
-        }
-
-        nextPoll =
-          started +
-          ([...cached.values()].some((value) => unfinished(value.status))
-            ? activePollMs
-            : config.pollMs) /
-            targets.size;
-      }),
-      { concurrency: config.concurrency, discard: true },
+    const focused = new Set(
+      discovered.flatMap((item) =>
+        item.focused && item.target ? [targetKey(item.target)] : [],
+      ),
     );
+
+    // Workspaces out of focus poll no more often than unfocusedPollMs.
+    const interval = (key: string, ms: number) =>
+      focused.has(key) ? ms : Math.max(ms, config.unfocusedPollMs);
+
+    const ciInterval = (key: string, value: CachedTarget) =>
+      value.error
+        ? config.retryMs
+        : interval(
+            key,
+            unfinished(value.status) ? activePollMs : config.pollMs,
+          );
+
+    const ciNext = (key: string) => {
+      const value = cached.get(key);
+
+      return value ? value.polled + ciInterval(key, value) : 0;
+    };
+
+    const reviewsNext = (key: string) => {
+      const value = reviewsCached.get(key);
+
+      return value
+        ? value.polled +
+            (value.error
+              ? config.retryMs
+              : interval(key, config.reviews.pollMs))
+        : 0;
+    };
+
+    const pause = Effect.fn("Watch.pause")(function* () {
+      const reset = yield* github.rateLimitReset("graphql");
+      const now = yield* Clock.currentTimeMillis;
+
+      pausedUntil = Math.max(now, reset ?? now + config.retryMs) + 1_000;
+      yield* Effect.logWarning(
+        `GitHub rate limit spent; polling resumes at ${new Date(pausedUntil).toISOString()}`,
+      );
+    });
+
+    const started = yield* Clock.currentTimeMillis;
+
+    const ciDue =
+      started >= pausedUntil &&
+      [...targets.keys()].some((key) => ciNext(key) <= started);
+
+    // Every target due, or due within half its interval, shares one query, so
+    // targets drift into the same poll rather than each costing a request.
+    const batch = ciDue
+      ? [...targets].filter(([key]) => {
+          const value = cached.get(key);
+
+          return !value || ciNext(key) - started <= ciInterval(key, value) / 2;
+        })
+      : [];
+
+    if (batch.length > 0) {
+      const keys = new Set(batch.map(([key]) => key));
+
+      yield* Effect.forEach(
+        discovered.filter(
+          (item) => item.target && keys.has(targetKey(item.target)),
+        ),
+        (item) =>
+          metadata(item.id, {
+            [ciToken]: config.indicatorTemplates.loading,
+          }),
+        { concurrency: config.concurrency, discard: true },
+      );
+
+      const result = yield* github
+        .statuses(
+          batch.map(([, target]) => target),
+          config.showPrevious,
+        )
+        .pipe(Effect.result);
+
+      const polled = yield* Clock.currentTimeMillis;
+
+      if (Result.isFailure(result) && result.failure.rateLimited)
+        yield* pause();
+
+      yield* Effect.forEach(
+        batch,
+        Effect.fn("Watch.recordCi")(function* ([key, target]) {
+          const previous = cached.get(key);
+
+          const outcome = Result.isFailure(result)
+            ? Result.fail(result.failure)
+            : (result.success.get(key) ?? Result.succeed(null));
+
+          if (Result.isFailure(outcome)) {
+            if (previous?.error !== String(outcome.failure))
+              yield* reportError(
+                Cause.fail(outcome.failure),
+                "GitHub Actions unavailable",
+              ).pipe(
+                Effect.annotateLogs({
+                  repository: target.repository,
+                  branch: target.branch,
+                }),
+              );
+            else
+              yield* Effect.logWarning(
+                `${target.repository} ${target.branch}: GitHub polling still unavailable`,
+                outcome.failure,
+              );
+            cached.set(key, {
+              polled,
+              status: null,
+              error: String(outcome.failure),
+            });
+          } else {
+            cached.set(key, { polled, status: outcome.success, error: null });
+          }
+        }),
+        { discard: true },
+      );
+    }
 
     // Reviews poll on their own, slower interval, one target per pass.
     const now = yield* Clock.currentTimeMillis;
 
-    const dueReviews = config.reviews.enabled
-      ? [...targets]
-          .filter(([key]) => (reviewsCached.get(key)?.next ?? 0) <= now)
-          .sort(
-            ([left], [right]) =>
-              (reviewsCached.get(left)?.next ?? 0) -
-              (reviewsCached.get(right)?.next ?? 0),
-          )
-          .slice(0, 1)
-      : [];
+    const dueReviews =
+      config.reviews.enabled && now >= pausedUntil
+        ? [...targets]
+            .filter(([key]) => reviewsNext(key) <= now)
+            .sort(([left], [right]) => reviewsNext(left) - reviewsNext(right))
+            .slice(0, 1)
+        : [];
 
     yield* Effect.forEach(
       dueReviews,
@@ -478,9 +538,11 @@ const runWatcher = Effect.gen(function* () {
           .forTarget(target)
           .pipe(Effect.result);
 
-        const finished = yield* Clock.currentTimeMillis;
+        const polled = yield* Clock.currentTimeMillis;
 
         if (Result.isFailure(result)) {
+          if (rateLimitedMessage(result.failure.message)) yield* pause();
+
           if (previous?.error !== String(result.failure))
             yield* reportError(
               Cause.fail(result.failure),
@@ -492,13 +554,13 @@ const runWatcher = Effect.gen(function* () {
               }),
             );
           reviewsCached.set(key, {
-            next: finished + config.retryMs,
+            polled,
             reviews: null,
             error: String(result.failure),
           });
         } else {
           reviewsCached.set(key, {
-            next: finished + config.reviews.pollMs,
+            polled,
             reviews: result.success,
             error: null,
           });
@@ -577,13 +639,11 @@ const runWatcher = Effect.gen(function* () {
 
     const nextRefresh = Math.min(
       nextDiscovery,
-      ...[...targets.keys()].map((key) => {
-        const next = cached.get(key)?.next;
-
-        return next === undefined ? 0 : Math.max(nextPoll, next);
-      }),
+      ...[...targets.keys()].map((key) => Math.max(pausedUntil, ciNext(key))),
       ...(config.reviews.enabled
-        ? [...targets.keys()].map((key) => reviewsCached.get(key)?.next ?? 0)
+        ? [...targets.keys()].map((key) =>
+            Math.max(pausedUntil, reviewsNext(key)),
+          )
         : []),
     );
 

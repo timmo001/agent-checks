@@ -123,6 +123,9 @@ const Settings = Schema.Struct({
   pollSeconds: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 3600 })),
   ),
+  unfocusedPollSeconds: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 3600 })),
+  ),
   retrySeconds: Schema.optionalKey(
     Schema.Int.check(Schema.isBetween({ minimum: 30, maximum: 3600 })),
   ),
@@ -200,6 +203,8 @@ export class RuntimeConfig extends Context.Service<
     readonly settingsFile: string;
     readonly settingsRevision: string;
     readonly pollMs: number;
+    /** The longest CI and review interval for workspaces not in focus. */
+    readonly unfocusedPollMs: number;
     readonly retryMs: number;
     readonly timeoutMs: number;
     readonly concurrency: number;
@@ -277,6 +282,11 @@ export class RuntimeConfig extends Context.Service<
         settingsFile: file,
         settingsRevision: revision,
         pollMs: (settings.pollSeconds ?? 30) * 1000,
+        unfocusedPollMs:
+          Math.max(
+            settings.unfocusedPollSeconds ?? 120,
+            settings.pollSeconds ?? 30,
+          ) * 1000,
         retryMs:
           Math.max(settings.retrySeconds ?? 120, settings.pollSeconds ?? 30) *
           1000,

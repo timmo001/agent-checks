@@ -215,13 +215,16 @@ Create `config.json` in the directory printed by
 ```
 
 - `pollSeconds` (10-3600) sets how often idle branches are polled. Branches with
-  unfinished runs are polled every 15 seconds until they finish. Polls are
-  staggered across branches, and workspaces on the same branch share a poll.
+  unfinished runs are polled every 15 seconds until they finish. Every branch
+  due shares one GraphQL query, and workspaces on the same branch share a poll.
+- `unfocusedPollSeconds` (10-3600, default 120) is the shortest CI and review
+  interval for workspaces not in focus, never shorter than `pollSeconds`.
 - `retrySeconds` (30-3600) is the wait after a failed poll, never shorter than
-  `pollSeconds`. `timeoutSeconds` (5-120) bounds each command and `concurrency`
+  `pollSeconds`. Once GitHub's rate limit is spent, polling waits until it
+  resets. `timeoutSeconds` (5-120) bounds each command and `concurrency`
   (1-8) bounds discovery and token updates.
 - `showPrevious` falls back to the nearest earlier first-parent commit with runs
-  when the pushed commit has none, within the latest 100 runs and commits.
+  when the pushed commit has none, within the latest 100 commits.
 - `indicatorTemplates` keys are `failure`, `unavailable`, `loading`,
   `inProgress`, `success`, `idle` and `previous`. `{count}` is the number of
   failed runs, or the commit distance in `previous`, where `{status}` is the
