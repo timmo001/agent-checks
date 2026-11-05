@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect";
-import { GitHub, type Target } from "./github";
+import { type Target } from "./github";
 import { Process } from "./process";
 
 export class ReviewsError extends Schema.TaggedError<ReviewsError>()(
@@ -98,20 +98,16 @@ export class PullRequestReviews extends Context.Service<
     PullRequestReviews,
     Effect.gen(function* () {
       const process = yield* Process;
-      const github = yield* GitHub;
 
       const forTarget = Effect.fn("PullRequestReviews.forTarget")(
         function* (target: Target) {
-          const number = yield* github.pullRequest(target);
-
-          if (number === null) return null;
-
           const output = yield* process.run(
             "dot",
             [
               "pr",
               "reviews",
-              String(number),
+              "--branch",
+              target.branch,
               "--repo",
               target.repository,
               "--json",
