@@ -70,7 +70,7 @@ type CachedReviews = {
   readonly error: string | null;
 };
 
-const activePollMs = 3_000;
+const activePollMs = 15_000;
 
 function unfinished(status: Status | null) {
   return (status?.previous?.runs ?? status?.runs)?.some(

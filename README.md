@@ -215,7 +215,7 @@ Create `config.json` in the directory printed by
 ```
 
 - `pollSeconds` (10-3600) sets how often idle branches are polled. Branches with
-  unfinished runs are polled every 3 seconds until they finish. Polls are
+  unfinished runs are polled every 15 seconds until they finish. Polls are
   staggered across branches, and workspaces on the same branch share a poll.
 - `retrySeconds` (30-3600) is the wait after a failed poll, never shorter than
   `pollSeconds`. `timeoutSeconds` (5-120) bounds each command and `concurrency`
