@@ -72,7 +72,8 @@ herdr plugin action invoke timmo.agent-checks.start
 
 Linking and reloading do not run startup hooks. Rebuild before starting a new
 watcher after source changes; a running watcher restarts itself when its bundle
-or configuration changes.
+or configuration changes. For a GitHub install, a running watcher moves to the
+new installation after `herdr plugin update`.
 
 For the Omarchy side, deploy the repository as the `timmo.agent-checks` plugin
 in `~/.config/omarchy/plugins/`. `FilterablePanel`, `OutputView`,
@@ -263,8 +264,8 @@ stay in the JSON logs.
 
 Herdr requests use [`@timmo001/effect-herdr`](https://github.com/timmo001/effect-herdr)
 and GitHub requests use [`@timmo001/effect-gh`](https://github.com/timmo001/effect-gh).
-effect-herdr is pinned to a GitHub commit, with a Bun patch in `patches/` that
-exposes its TypeScript entrypoint. Keep the commit, patch and lockfile together.
+Both are pinned to exact npm versions; effect-herdr's version follows the Herdr
+release whose socket protocol it speaks.
 
 ```sh
 mise install
