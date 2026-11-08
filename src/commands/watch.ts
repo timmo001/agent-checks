@@ -345,8 +345,8 @@ const runWatcher = Effect.gen(function* () {
   let pausedUntil = 0;
   const paneCwds = new Map<string, string | undefined>();
 
-  // New workspaces, focus and directory changes would otherwise wait for the
-  // next periodic discovery.
+  // New workspaces, focus, directory changes and moved panes would otherwise
+  // wait for the next periodic discovery.
   yield* herdr.events
     .subscribe([
       { type: "workspace.created" },
@@ -357,6 +357,7 @@ const runWatcher = Effect.gen(function* () {
       { type: "pane.created" },
       { type: "pane.updated" },
       { type: "pane.focused" },
+      { type: "pane.moved" },
       { type: "pane.closed" },
     ])
     .pipe(
@@ -370,6 +371,15 @@ const runWatcher = Effect.gen(function* () {
             paneCwds.set(event.pane.id, cwd);
           } else if (event.type === "pane.created") {
             paneCwds.set(event.pane.id, paneDirectory(event.pane));
+          } else if (event.type === "pane.moved") {
+            // A move to another workspace gives the pane a new ID, without
+            // close or create events, so its agent status follows it.
+            const status = paneStatus.get(event.previousPaneId);
+            paneCwds.delete(event.previousPaneId);
+            paneStatus.delete(event.previousPaneId);
+            paneCwds.set(event.pane.id, paneDirectory(event.pane));
+
+            if (status !== undefined) paneStatus.set(event.pane.id, status);
           } else if (event.type === "pane.closed") {
             paneCwds.delete(event.paneId);
           }
