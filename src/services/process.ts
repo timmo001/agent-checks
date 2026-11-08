@@ -117,9 +117,10 @@ export class Process extends Context.Service<
   );
 }
 
-// The detached watcher outlives this scope and owns its own lease.
+// The detached watcher outlives this scope and owns its own lease. `root` is
+// the installation to run, which differs from this one after a plugin update.
 export const detachWatcher = Effect.fn("Process.detachWatcher")(
-  function* () {
+  function* (root: string) {
     const config = yield* RuntimeConfig;
     const path = yield* Path.Path;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -133,15 +134,16 @@ export const detachWatcher = Effect.fn("Process.detachWatcher")(
           "sh",
           path.join(config.state, "watch.log"),
           process.execPath,
-          path.join(config.root, "dist/index.js"),
+          path.join(root, "dist/index.js"),
           "watch",
         ],
         {
-          cwd: config.root,
+          cwd: root,
           detached: true,
           stdin: "ignore",
           stdout: "ignore",
           stderr: "ignore",
+          env: { HERDR_PLUGIN_ROOT: root },
           extendEnv: true,
         },
       ),

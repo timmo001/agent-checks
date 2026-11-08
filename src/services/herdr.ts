@@ -27,11 +27,22 @@ export const herdrLayer = Layer.unwrap(
   }),
 );
 
-export const enabled = Effect.gen(function* () {
-  const plugins = yield* (yield* HerdrSdk).plugins.list({ pluginId });
+/**
+ * Whether the plugin is enabled, and for a GitHub install the directory of
+ * its current installation, which `herdr plugin update` replaces.
+ */
+export const registration = Effect.gen(function* () {
+  const plugin = (yield* (yield* HerdrSdk).plugins.list({ pluginId })).find(
+    (value) => value.id === pluginId,
+  );
 
-  return plugins.some((plugin) => plugin.id === pluginId && plugin.enabled);
+  return {
+    enabled: plugin?.enabled ?? false,
+    managedRoot: plugin?.source?.kind === "github" ? plugin.root : undefined,
+  };
 });
+
+export const enabled = Effect.map(registration, (value) => value.enabled);
 
 export const cleared = {
   [ciToken]: null,

@@ -36,6 +36,7 @@ import {
   enabled,
   metadata,
   paneDirectory,
+  registration,
 } from "../services/herdr";
 import { ProcessError, detachWatcher } from "../services/process";
 import { waitForUpdate } from "../services/reload";
@@ -55,7 +56,7 @@ export const start = Effect.gen(function* () {
     }),
   );
 
-  if (!held) yield* detachWatcher();
+  if (!held) yield* detachWatcher(config.root);
 });
 
 type CachedTarget = {
@@ -126,7 +127,7 @@ const runWatcher = Effect.gen(function* () {
         : Effect.void,
   );
 
-  if (!lease) return false;
+  if (!lease) return null;
   yield* Effect.logInfo("Agent Checks watcher started");
   const workspaces = new Map<WorkspaceId, string>();
   const discoveryErrors = new Map<WorkspaceId, string>();
@@ -381,6 +382,14 @@ const runWatcher = Effect.gen(function* () {
         Effect.logWarning("Workspace event stream unavailable", cause),
       ),
       Effect.andThen(Effect.sleep(10_000)),
+      // The stream ends after Herdr drops events, such as with events_lost.
+      Effect.andThen(
+        Effect.suspend(() => {
+          nextDiscovery = 0;
+
+          return Queue.offer(wake, undefined);
+        }),
+      ),
       Effect.forever,
       Effect.forkScoped,
     );
@@ -651,11 +660,18 @@ const runWatcher = Effect.gen(function* () {
   });
 
   return yield* Effect.gen(function* () {
-    while (
-      yield* enabled.pipe(
+    while (true) {
+      const plugin = yield* registration.pipe(
         Effect.retry({ times: 5, schedule: Schedule.spaced(1_000) }),
-      )
-    ) {
+      );
+
+      if (!plugin.enabled) break;
+
+      // `herdr plugin update` installs into a new directory and leaves this
+      // watcher running the old one.
+      if (plugin.managedRoot && plugin.managedRoot !== config.root)
+        return plugin.managedRoot;
+
       const delay = yield* refresh.pipe(
         Effect.retry({ times: 5, schedule: Schedule.spaced(1_000) }),
       );
@@ -667,18 +683,18 @@ const runWatcher = Effect.gen(function* () {
 
     yield* Effect.logInfo("Agent Checks watcher disabled");
 
-    return false;
+    return null;
   }).pipe(
-    Effect.raceFirst(waitForUpdate.pipe(Effect.as(true))),
+    Effect.raceFirst(waitForUpdate.pipe(Effect.as(config.root))),
     Effect.raceFirst(Deferred.await(compromised)),
   );
 }).pipe(Effect.scoped);
 
 export const watch = Effect.gen(function* () {
-  const restart = yield* runWatcher;
+  const root = yield* runWatcher;
 
-  if (restart && (yield* enabled)) {
+  if (root !== null && (yield* enabled)) {
     yield* Effect.logInfo("Agent Checks changed; starting a new watcher");
-    yield* detachWatcher();
+    yield* detachWatcher(root);
   }
 });
