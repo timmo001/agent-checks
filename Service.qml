@@ -22,7 +22,7 @@ Item {
   // The watcher writes at least every poll interval; much older means it stopped.
   readonly property bool stale: loaded && currentTime - updated > 180000
   readonly property var focused: {
-    for (var i = 0; i < workspaces.length; i++)
+    for (let i = 0; i < workspaces.length; i++)
       if (workspaces[i].workspace === workspaceId) return workspaces[i]
     return null
   }
@@ -92,7 +92,7 @@ Item {
 
   function applyStatus(raw) {
     try {
-      var value = JSON.parse(raw)
+      const value = JSON.parse(raw)
       workspaces = Array.isArray(value.workspaces) ? value.workspaces : []
       updated = Number(value.updated || 0)
       errorText = ""

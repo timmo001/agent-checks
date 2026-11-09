@@ -243,7 +243,7 @@ Panel {
 
   function overallTone() {
     var tones = ["failed", "running", "ok"]
-    for (var i = 0; i < tones.length; i++)
+    for (let i = 0; i < tones.length; i++)
       if (ciTone === tones[i] || lintTone === tones[i] || reviewsTone === tones[i]) return tones[i]
     return "none"
   }
@@ -314,7 +314,7 @@ Panel {
   function ciBadge() {
     if (!ci || view !== "checks") return ""
     if (ci.runs.length === 0 && ci.previous) {
-      var behind = ci.previous.commitsBehind
+      const behind = ci.previous.commitsBehind
       return "CI on " + shortSha(ci.previous.sha) + " (" + behind + " commit" + (behind === 1 ? "" : "s") + " older)"
     }
     return "CI on " + shortSha(ci.sha)
@@ -338,7 +338,7 @@ Panel {
 
   function reportFor(run) {
     if (!ciReady) return null
-    for (var i = 0; i < ciReport.runs.length; i++)
+    for (let i = 0; i < ciReport.runs.length; i++)
       if (ciReport.runs[i].id === run.id) return ciReport.runs[i]
     return null
   }
@@ -521,14 +521,14 @@ Panel {
     if (entry.navigation === true) return panelHeader
     if (view === "agent") return launcherRepeater.itemAt(launcherRows.indexOf(entry))
     if (entry.kind === "toggle") {
-      var headingIndex = sections.findIndex(function(section) { return section.kind === entry.section })
-      var headingItem = sectionRepeater.itemAt(headingIndex)
+      const headingIndex = sections.findIndex(function(section) { return section.kind === entry.section })
+      const headingItem = sectionRepeater.itemAt(headingIndex)
       return headingItem ? headingItem.heading : null
     }
-    for (var i = 0; i < sections.length; i++) {
-      var sectionItem = sectionRepeater.itemAt(i)
+    for (let i = 0; i < sections.length; i++) {
+      const sectionItem = sectionRepeater.itemAt(i)
       if (!sectionItem) continue
-      var index = sections[i].rows.findIndex(function(row) { return row.key === entry.key })
+      const index = sections[i].rows.findIndex(function(row) { return row.key === entry.key })
       if (index >= 0) return sectionItem.rowAt(index)
     }
     return null

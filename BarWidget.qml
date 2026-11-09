@@ -16,7 +16,7 @@ BarWidget {
   }
   readonly property string activeOutput: {
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++)
+    for (let i = 0; i < screens.length; i++)
       if (root.preferredOutput !== "" && screens[i].name === root.preferredOutput)
         return root.preferredOutput
     return screens.length > 0 ? String(screens[0].name || "") : ""
@@ -84,7 +84,7 @@ BarWidget {
     if (root.activeInstance) return root
     var items = root.bar && typeof root.bar.moduleWidgets === "function"
       ? root.bar.moduleWidgets(root.moduleName) : []
-    for (var i = 0; i < items.length; i++)
+    for (let i = 0; i < items.length; i++)
       if (items[i] && items[i].activeInstance === true) return items[i]
     return null
   }
@@ -146,7 +146,7 @@ BarWidget {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
       if (root.pendingOpen) {
-        var request = root.pendingOpen
+        const request = root.pendingOpen
         root.pendingOpen = null
         item.open(request)
       }
