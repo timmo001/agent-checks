@@ -56,7 +56,14 @@ omarchy plugin validate "$dir"
 
 [tasks."lint:qml"]
 description = "Lint the plugin QML"
-run = "/usr/lib/qt6/bin/qmllint --max-warnings 0 *.qml"
+# The Omarchy shell's qs.* modules come from its own directory, which Quickshell
+# serves as qs; without them qmllint takes BarWidget and Panel for this plugin's.
+run = '''
+dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+ln -s "${OMARCHY_PATH:-$HOME/.local/share/omarchy}/shell" "$dir/qs"
+/usr/lib/qt6/bin/qmllint -I "$dir" --max-warnings 0 *.qml
+'''
 
 [tasks."check:plugin"]
 description = "Validate the plugin manifest and lint the QML"
