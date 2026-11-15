@@ -1,5 +1,9 @@
 node_modules/
 dist/
+docs/.astro/
+docs/.blume/
+docs/.blume-verify/
+docs/.wrangler/
 bun.lock
 LICENSE
 .agents/skills/

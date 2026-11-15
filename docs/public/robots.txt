@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://agent-checks.timmo.dev/sitemap-index.xml

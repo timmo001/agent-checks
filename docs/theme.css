@@ -1,0 +1,3 @@
+@import "@timmo001/docs-kit/blume/theme.css";
+/* Base until Agent Checks has a theme of its own */
+@import "@timmo001/docs-kit/blume/themes/base.css";

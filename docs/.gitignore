@@ -1,0 +1,24 @@
+# build output
+dist/
+# generated types
+.astro/
+.blume/
+.blume-verify/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+bun-debug.log*
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store
+
+# Vercel
+.vercel
+.wrangler/

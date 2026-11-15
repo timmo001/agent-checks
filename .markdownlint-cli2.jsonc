@@ -4,5 +4,10 @@
     "MD013": false,
   },
   "globs": ["**/*.md"],
-  "ignores": ["node_modules/**", "dist/**", ".agents/skills/**", ".mise/**"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/dist/**",
+    ".agents/skills/**",
+    ".mise/**",
+  ],
 }

@@ -34,9 +34,58 @@ description = "Check formatting without writing"
 depends = ["install"]
 run = "bun run format:check"
 
+[tasks."docs:install"]
+description = "Install docs dependencies"
+dir = "docs"
+run = "bun install --frozen-lockfile"
+
+[tasks."docs:dev"]
+description = "Run the docs dev server"
+depends = ["docs:install"]
+dir = "docs"
+# A reused Vite cache makes every page fail to resolve Astro's ClientRouter script
+run = ["rm -rf .blume/.cache/vite", "bun run dev"]
+
+[tasks."docs:build"]
+description = "Build the docs site"
+depends = ["docs:install"]
+dir = "docs"
+run = "bun run build"
+
+[tasks."docs:check"]
+description = "Check the docs site, apart from a running dev server"
+depends = ["docs:install"]
+dir = "docs"
+run = "bun run check"
+
+[tasks."docs:preview"]
+description = "Preview the built docs site"
+dir = "docs"
+run = "bun run preview"
+
+[tasks."serve:docs"]
+description = "Start the docs dev server in the background through Pitchfork"
+run = "pitchfork start docs"
+
+[tasks."serve:docs:status"]
+description = "Show the background docs dev server status"
+run = "pitchfork status docs"
+
+[tasks."serve:docs:logs"]
+description = "Follow the background docs dev server logs"
+run = "pitchfork logs -t docs"
+
+[tasks."serve:docs:restart"]
+description = "Restart the background docs dev server"
+run = "pitchfork restart docs"
+
+[tasks."serve:docs:stop"]
+description = "Stop the background docs dev server"
+run = "pitchfork stop docs"
+
 [tasks.check]
-description = "Lint, type-check and verify formatting"
-depends = ["lint", "typecheck", "format:check"]
+description = "Lint, type-check, verify formatting and check the docs site"
+depends = ["lint", "typecheck", "format:check", "docs:check"]
 
 [tasks.build]
 description = "Build the Bun module into dist"

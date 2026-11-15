@@ -1,0 +1,30 @@
+{
+  "name": "agent-checks-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "blume dev",
+    "start": "blume dev",
+    "build": "blume build --strict",
+    "check": "blume check --strict --isolated",
+    "validate": "blume validate --strict",
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
+    "deploy:preview": "wrangler versions upload --config dist/server/wrangler.json",
+    "preview": "blume preview",
+    "brand": "bun scripts/brand-images.ts"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "14.4.8",
+    "@timmo001/docs-kit": "0.46.0",
+    "blume": "2.2.7",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "wrangler": "4.162.0"
+  },
+  "trustedDependencies": [
+    "esbuild",
+    "sharp"
+  ]
+}

@@ -1,0 +1,37 @@
+---
+title: Overview
+description: CI, lint and pull request review status for Herdr workspaces, with an Omarchy panel to read and act on it.
+---
+
+Agent Checks follows the current branch of every open GitHub-backed Herdr workspace and shows whether CI, lint and pull request reviews need you, in Herdr's sidebar and in an Omarchy panel.
+
+One repository holds three parts:
+
+- An Effect CLI in `src/`, built to `dist/`.
+- A Herdr plugin (`herdr-plugin.toml`) that runs the watcher, publishes sidebar tokens and binds the actions.
+- An Omarchy shell plugin (`manifest.json`, `Service.qml`, `BarWidget.qml`, `Panel.qml`) with a bar widget and a panel for CI, lint and reviews.
+
+Nothing is published. mise and Bun build and run everything from the checkout.
+
+## Get started
+
+<Steps>
+  <Step title="Install">
+    Build the CLI and link the Herdr plugin. See [Install](/install).
+  </Step>
+  <Step title="Read the status">
+    Add the sidebar tokens and bind the actions. See [Status](/status).
+  </Step>
+  <Step title="Open the panel">
+    Deploy the Omarchy plugin to act on a failure. See [Panel](/panel).
+  </Step>
+</Steps>
+
+## Machine-readable docs
+
+| URL                                          | Use                                      |
+| -------------------------------------------- | ---------------------------------------- |
+| https://agent-checks.timmo.dev/llms.txt      | Compact page index                       |
+| https://agent-checks.timmo.dev/llms-full.txt | Full docs bundle                         |
+| https://agent-checks.timmo.dev/mcp           | Hosted MCP (search, page and navigation) |
+| `/{route}.md`                                | One page as Markdown                     |
