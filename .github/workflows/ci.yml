@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    uses: timmo001/workflows/.github/workflows/run-mise-task.yml@e34d060ab6066dcc7687737b6ef7a344d6598d58 # master
+    uses: timmo001/workflows/.github/workflows/run-mise-task.yml@3d89dd01acbb816ca2c25994eb79335b109bf1a9 # master
     with:
       name: Build
       task: build
