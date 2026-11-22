@@ -28,7 +28,7 @@
     "@types/bun": "1.4.5",
     "@types/proper-lockfile": "4.1.4",
     "oxlint": "1.94.0",
-    "oxlint-tsgolint": "7.0.2007",
+    "oxlint-tsgolint": "7.0.2008",
     "prettier": "3.10.1",
     "typescript": "7.0.2"
   },
