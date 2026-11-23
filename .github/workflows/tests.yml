@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   smoke:
-    uses: timmo001/workflows/.github/workflows/run-mise-task.yml@37f064c74a268da8e266dff8b8e75fd4c56ed67f # master
+    uses: timmo001/workflows/.github/workflows/run-mise-task.yml@1a88a7bd6ac2b8dc40e71c5fa197675c08af7ee0 # master
     with:
       name: CLI smoke check
       task: build
