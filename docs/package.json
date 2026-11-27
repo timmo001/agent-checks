@@ -26,7 +26,7 @@
     "@alchemy.run/github": "2.0.0-beta.87",
     "@effect/platform-bun": "4.1.7",
     "alchemy": "2.0.0-beta.87",
-    "effect": "4.1.6",
+    "effect": "4.1.7",
     "wrangler": "4.168.0"
   },
   "trustedDependencies": [
